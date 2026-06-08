@@ -17,6 +17,7 @@ export type Database = {
       pages: {
         Row: {
           body: string
+          cover: string | null
           created_at: string
           icon: string | null
           id: string
@@ -28,6 +29,7 @@ export type Database = {
         }
         Insert: {
           body?: string
+          cover?: string | null
           created_at?: string
           icon?: string | null
           id?: string
@@ -39,6 +41,7 @@ export type Database = {
         }
         Update: {
           body?: string
+          cover?: string | null
           created_at?: string
           icon?: string | null
           id?: string

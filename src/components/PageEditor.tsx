@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, useMemo } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchPage, fetchLibrary, updatePage, ancestorTitles } from "@/lib/library";
+import { fetchPage, fetchLibrary, updatePage, ancestorTitles, childrenOf } from "@/lib/library";
 import { PageIcon } from "@/components/PageIcon";
+import { CoverBanner, AddCoverButton } from "@/components/PageCover";
 import { BlockEditor, type BlockEditorHandle } from "@/components/BlockEditor";
+import { FileText } from "lucide-react";
 
 export function PageEditor({ pageId }: { pageId: string }) {
   const qc = useQueryClient();
@@ -32,13 +35,17 @@ export function PageEditor({ pageId }: { pageId: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
   });
 
-  // Icon saves immediately (and refreshes both the page and the sidebar tree).
+  // Icon + cover save immediately (and refresh the page + sidebar tree).
   const iconMut = useMutation({
     mutationFn: (icon: string | null) => updatePage({ id: pageId, icon }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["library"] });
       qc.invalidateQueries({ queryKey: ["page", pageId] });
     },
+  });
+  const coverMut = useMutation({
+    mutationFn: (cover: string | null) => updatePage({ id: pageId, cover }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["page", pageId] }),
   });
 
   // debounce auto-save
@@ -50,6 +57,10 @@ export function PageEditor({ pageId }: { pageId: string }) {
 
   const breadcrumb = useMemo(
     () => ancestorTitles(lib?.pages ?? [], pageId).join(" / "),
+    [lib, pageId],
+  );
+  const childPages = useMemo(
+    () => childrenOf(lib?.pages ?? [], pageId),
     [lib, pageId],
   );
 
@@ -69,9 +80,11 @@ export function PageEditor({ pageId }: { pageId: string }) {
       </header>
 
       <div className="flex-1 overflow-y-auto selection:bg-accent/20">
-        <article className="max-w-2xl mx-auto py-10 sm:py-20 px-5 sm:px-8">
-          <div className="mb-4">
+        {page.cover && <CoverBanner cover={page.cover} onChange={(c) => coverMut.mutate(c)} />}
+        <article className={`max-w-2xl mx-auto px-5 sm:px-8 pb-20 ${page.cover ? "pt-6" : "pt-10 sm:pt-20"}`}>
+          <div className="mb-4 flex items-center gap-2 flex-wrap">
             <PageIcon icon={page.icon} onChange={(ic) => iconMut.mutate(ic)} size="lg" />
+            {!page.cover && <AddCoverButton onChange={(c) => coverMut.mutate(c)} />}
           </div>
           <input
             ref={titleRef}
@@ -100,6 +113,30 @@ export function PageEditor({ pageId }: { pageId: string }) {
             value={page.body}
             onChange={(v) => scheduleSave({ body: v })}
           />
+
+          {childPages.length > 0 && (
+            <section className="mt-10 border-t border-border pt-6">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Undersidor</p>
+              <ul className="space-y-0.5">
+                {childPages.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      to="/app/page/$pageId"
+                      params={{ pageId: c.id }}
+                      className="flex items-center gap-2.5 px-2 py-2 -mx-2 rounded-md hover:bg-ink/5 transition-colors"
+                    >
+                      {c.icon ? (
+                        <span className="text-base leading-none shrink-0" aria-hidden>{c.icon}</span>
+                      ) : (
+                        <FileText className="size-4 opacity-40 shrink-0" />
+                      )}
+                      <span className="text-[1.05rem] font-text">{c.title || "Namnlös"}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </article>
       </div>
     </>

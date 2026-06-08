@@ -12,6 +12,7 @@ import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
 import { en } from "@blocknote/core/locales";
 import { Type } from "lucide-react";
 import { useTheme } from "@/lib/theme";
+import { uploadMedia } from "@/lib/storage";
 import { StatementBlock, STATEMENT_VARIANTS, type StatementVariant } from "@/components/StatementBlock";
 
 export type BlockEditorHandle = { focus: () => void };
@@ -53,6 +54,8 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
   const editor = useCreateBlockNote({
     schema,
     initialContent: parseInitial(value),
+    // Drag/drop/paste an image → uploads to Supabase Storage, returns a URL.
+    uploadFile: uploadMedia,
     // No Swedish locale ships with BlockNote — override the visible placeholder.
     dictionary: {
       ...en,
@@ -67,6 +70,28 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
   useImperativeHandle(ref, () => ({
     focus: () => editor.focus(),
   }), [editor]);
+
+  // Click anywhere in the empty area below the content → start writing there
+  // (append a paragraph if the last block isn't already an empty one).
+  function focusEnd() {
+    const doc = editor.document;
+    const last = doc[doc.length - 1];
+    const lastEmpty =
+      last?.type === "paragraph" &&
+      (!last.content || (Array.isArray(last.content) && last.content.length === 0));
+    if (last && !lastEmpty) {
+      editor.insertBlocks([{ type: "paragraph" }], last, "after");
+    }
+    const fresh = editor.document;
+    editor.setTextCursorPosition(fresh[fresh.length - 1], "end");
+    editor.focus();
+  }
+  function handleWrapClick(e: React.MouseEvent) {
+    const t = e.target as HTMLElement;
+    // Ignore clicks that landed on actual content / controls.
+    if (t.closest(".bn-block-content") || t.closest("button") || t.closest('[role="menu"]')) return;
+    focusEnd();
+  }
 
   function statementItems(): DefaultReactSuggestionItem[] {
     return STATEMENT_VARIANTS.map((variant) => ({
@@ -85,26 +110,28 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
   }
 
   return (
-    <BlockNoteView
-      editor={editor}
-      theme={theme === "dark" ? "dark" : "light"}
-      onChange={() => onChange(JSON.stringify(editor.document))}
-      className="arkiv-editor"
-      slashMenu={false}
-    >
-      <SuggestionMenuController
-        triggerCharacter="/"
-        getItems={async (query) => {
-          const items = [...getDefaultReactSlashMenuItems(editor), ...statementItems()];
-          const q = query.trim().toLowerCase();
-          if (!q) return items;
-          return items.filter(
-            (it) =>
-              it.title.toLowerCase().includes(q) ||
-              (it.aliases ?? []).some((a) => a.toLowerCase().includes(q)),
-          );
-        }}
-      />
-    </BlockNoteView>
+    <div className="min-h-[28vh] cursor-text" onClick={handleWrapClick}>
+      <BlockNoteView
+        editor={editor}
+        theme={theme === "dark" ? "dark" : "light"}
+        onChange={() => onChange(JSON.stringify(editor.document))}
+        className="arkiv-editor"
+        slashMenu={false}
+      >
+        <SuggestionMenuController
+          triggerCharacter="/"
+          getItems={async (query) => {
+            const items = [...getDefaultReactSlashMenuItems(editor), ...statementItems()];
+            const q = query.trim().toLowerCase();
+            if (!q) return items;
+            return items.filter(
+              (it) =>
+                it.title.toLowerCase().includes(q) ||
+                (it.aliases ?? []).some((a) => a.toLowerCase().includes(q)),
+            );
+          }}
+        />
+      </BlockNoteView>
+    </div>
   );
 });
