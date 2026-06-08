@@ -42,17 +42,17 @@ export function PageEditor({ pageId }: { pageId: string }) {
 
   return (
     <>
-      <header className="h-14 border-b border-border flex items-center justify-between px-8 shrink-0">
-        <div className="text-[11px] font-medium uppercase tracking-[0.2em] opacity-40 truncate">
+      <header className="h-12 sm:h-14 border-b border-border flex items-center justify-between px-4 sm:px-8 shrink-0 gap-3">
+        <div className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.2em] opacity-40 truncate">
           Library {breadcrumb && `/ ${breadcrumb} `}/ {page.title || "Untitled"}
         </div>
-        <div className="text-[10px] uppercase tracking-widest opacity-30">
+        <div className="text-[10px] uppercase tracking-widest opacity-30 shrink-0">
           {saveMut.isPending ? "Saving…" : "Saved"}
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto selection:bg-accent/20">
-        <article className="max-w-2xl mx-auto py-20 px-8">
+        <article className="max-w-2xl mx-auto py-10 sm:py-20 px-5 sm:px-8">
           <input
             type="text"
             value={title}
@@ -61,7 +61,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
               setTitle(e.target.value);
               scheduleSave({ title: e.target.value });
             }}
-            className="w-full bg-transparent font-serif text-5xl italic tracking-tight outline-none mb-10 placeholder:opacity-20"
+            className="w-full bg-transparent font-serif text-4xl sm:text-5xl italic tracking-tight outline-none mb-8 sm:mb-10 placeholder:opacity-20"
           />
           <MarkdownEditor
             value={body}
