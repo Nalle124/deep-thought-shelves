@@ -22,10 +22,24 @@ import {
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   ChevronRight, MoreHorizontal, Plus, Sun, Moon, LogOut, Trash2, Pencil, Menu,
+  PanelLeft, PanelLeftClose, House,
 } from "lucide-react";
 
 const DRAG_TYPE = "application/x-arkiv";
 type DragPayload = { id: string };
+
+// Shared "create a top-level page and open it" action.
+function useCreateRootPage() {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  return useMutation({
+    mutationFn: () => createPage({ parent_id: null }),
+    onSuccess: (p) => {
+      qc.invalidateQueries({ queryKey: ["library"] });
+      navigate({ to: "/app/page/$pageId", params: { pageId: p.id } });
+    },
+  });
+}
 
 function parseDrag(e: DragEvent): DragPayload | null {
   const raw = e.dataTransfer.getData(DRAG_TYPE);
@@ -41,13 +55,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: lib } = useQuery({ queryKey: ["library"], queryFn: fetchLibrary });
   const params = useParams({ strict: false }) as { pageId?: string };
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [deskOpen, setDeskOpen] = useState(true);
+  const newPage = useCreateRootPage();
 
   const pages = lib?.pages ?? [];
 
   return (
     <div className="flex h-[100dvh] w-full bg-paper text-ink font-sans overflow-hidden">
-      <div className="hidden md:flex">
-        <SidebarBody pages={pages} activePageId={params.pageId} onNavigate={() => {}} />
+      <div className={deskOpen ? "hidden md:flex" : "hidden"}>
+        <SidebarBody
+          pages={pages}
+          activePageId={params.pageId}
+          onNavigate={() => {}}
+          onCollapse={() => setDeskOpen(false)}
+        />
       </div>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -57,29 +78,57 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Sheet>
 
       <main className="flex-1 flex flex-col relative overflow-hidden min-w-0">
-        <div className="md:hidden h-12 border-b border-border flex items-center px-3 shrink-0">
+        {/* Mobile top bar */}
+        <div className="md:hidden h-12 border-b border-border flex items-center justify-between px-3 shrink-0">
+          <div className="flex items-center">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="p-2 -ml-2 hover:bg-ink/5 rounded-md"
+              aria-label="Öppna meny"
+            >
+              <Menu className="size-5" />
+            </button>
+            <Link to="/app" className="font-serif italic text-xl tracking-tight ml-1">Arkiv</Link>
+          </div>
           <button
-            onClick={() => setMobileOpen(true)}
-            className="p-2 -ml-2 hover:bg-ink/5 rounded-md"
-            aria-label="Öppna meny"
+            onClick={() => newPage.mutate()}
+            className="p-2 -mr-2 hover:bg-ink/5 rounded-md"
+            aria-label="Ny sida"
           >
-            <Menu className="size-5" />
+            <Plus className="size-5" />
           </button>
-          <Link to="/app" className="font-serif italic text-xl tracking-tight ml-1">Arkiv</Link>
         </div>
+
+        {/* Reveal a collapsed desktop sidebar */}
+        {!deskOpen && (
+          <button
+            onClick={() => setDeskOpen(true)}
+            className="hidden md:flex absolute top-2.5 left-2.5 z-30 p-2 rounded-md bg-paper/70 backdrop-blur hover:bg-ink/10 items-center"
+            aria-label="Visa sidomeny"
+          >
+            <PanelLeft className="size-4 opacity-70" />
+          </button>
+        )}
+
         {children}
-        <FloatingAdd />
+        {/* Floating add: only on desktop, and only while the sidebar is open. */}
+        {deskOpen && (
+          <div className="hidden md:block">
+            <FloatingAdd />
+          </div>
+        )}
       </main>
     </div>
   );
 }
 
-function SidebarBody({ pages, activePageId, onNavigate }: {
-  pages: Page[]; activePageId?: string; onNavigate: () => void;
+function SidebarBody({ pages, activePageId, onNavigate, onCollapse }: {
+  pages: Page[]; activePageId?: string; onNavigate: () => void; onCollapse?: () => void;
 }) {
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const newPage = useCreateRootPage();
 
   const roots = childrenOf(pages, null);
 
@@ -95,14 +144,6 @@ function SidebarBody({ pages, activePageId, onNavigate }: {
     mutationFn: ({ id, parent }: { id: string; parent: string | null }) => movePage(id, parent),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
   });
-  const newPageMut = useMutation({
-    mutationFn: () => createPage({ parent_id: null }),
-    onSuccess: (p) => {
-      qc.invalidateQueries({ queryKey: ["library"] });
-      navigate({ to: "/app/page/$pageId", params: { pageId: p.id } });
-      onNavigate();
-    },
-  });
   function handleRootDrop(e: DragEvent) {
     e.preventDefault();
     const data = parseDrag(e);
@@ -115,8 +156,8 @@ function SidebarBody({ pages, activePageId, onNavigate }: {
         <Link to="/app" onClick={onNavigate} className="font-serif italic text-2xl tracking-tight">Arkiv</Link>
         <div className="flex items-center gap-0.5">
           <button
-            onClick={() => newPageMut.mutate()}
-            disabled={newPageMut.isPending}
+            onClick={() => { newPage.mutate(); onNavigate(); }}
+            disabled={newPage.isPending}
             className="p-1.5 hover:bg-ink/5 rounded-md transition-colors disabled:opacity-50"
             aria-label="Ny sida"
             title="Ny sida"
@@ -130,6 +171,16 @@ function SidebarBody({ pages, activePageId, onNavigate }: {
           >
             {theme === "light" ? <Moon className="size-4 opacity-60" /> : <Sun className="size-4 opacity-60" />}
           </button>
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="hidden md:block p-1.5 hover:bg-ink/5 rounded-md transition-colors"
+              aria-label="Dölj sidomeny"
+              title="Dölj sidomeny"
+            >
+              <PanelLeftClose className="size-4 opacity-60" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -138,6 +189,17 @@ function SidebarBody({ pages, activePageId, onNavigate }: {
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleRootDrop}
       >
+        <Link
+          to="/app"
+          onClick={onNavigate}
+          activeOptions={{ exact: true }}
+          className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm transition-colors mb-1 ${
+            !activePageId ? "bg-accent/15 text-accent" : "opacity-70 hover:opacity-100 hover:bg-ink/5"
+          }`}
+        >
+          <House className="size-3.5 opacity-60 shrink-0" />
+          <span>Hem</span>
+        </Link>
         {roots.map((p) => (
           <PageNode key={p.id} page={p} pages={pages} depth={0} activePageId={activePageId} onNavigate={onNavigate} />
         ))}
@@ -345,22 +407,13 @@ function RowMenu({ page }: { page: Page }) {
 // Single action: create a new top-level page and jump straight into it. No choice
 // between page/folder — a page becomes a "folder" the moment something nests in it.
 function FloatingAdd() {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-
-  const pageMut = useMutation({
-    mutationFn: () => createPage({ parent_id: null }),
-    onSuccess: (p) => {
-      qc.invalidateQueries({ queryKey: ["library"] });
-      navigate({ to: "/app/page/$pageId", params: { pageId: p.id } });
-    },
-  });
+  const newPage = useCreateRootPage();
 
   return (
     <div className="absolute bottom-6 right-6 sm:bottom-8 sm:right-8 z-20">
       <button
-        onClick={() => pageMut.mutate()}
-        disabled={pageMut.isPending}
+        onClick={() => newPage.mutate()}
+        disabled={newPage.isPending}
         className="size-14 sm:size-12 rounded-full bg-ink text-paper shadow-2xl flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-60"
         aria-label="Ny sida"
       >

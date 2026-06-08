@@ -55,16 +55,16 @@
 }
 
 .dark {
-  --paper: #141312;
+  --paper: #2a2826;
   --ink: #ecebe7;
   --background: var(--paper);
   --foreground: var(--ink);
-  --card: #1c1b1a;
-  --muted: #232220;
-  --muted-foreground: #908d86;
-  --border: #2b2926;
+  --card: #34312d;
+  --muted: #383531;
+  --muted-foreground: #a8a49d;
+  --border: #423e39;
   --accent: #a8ad94;
-  --accent-foreground: #141312;
+  --accent-foreground: #2a2826;
 }
 
 @layer base {
@@ -80,11 +80,14 @@
 
 /* --- BlockNote editor, themed to the Arkiv look --- */
 .arkiv-editor {
-  --bn-colors-editor-background: transparent;
   --bn-colors-editor-text: var(--ink);
   --bn-font-family: var(--font-text);
 }
+/* BlockNote paints the editor with a solid white/#1f1f1f background; clear it so
+   the page sits on the app's paper color. */
+.arkiv-editor .bn-root { --bn-colors-editor-background: transparent; }
 .arkiv-editor .bn-editor {
+  background-color: transparent !important;
   /* Align block text with the page title (kill BlockNote's gutter padding;
      hover controls sit in the page margin). */
   padding-inline: 0;
