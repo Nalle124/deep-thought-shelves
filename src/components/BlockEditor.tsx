@@ -1,42 +1,88 @@
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { forwardRef, useImperativeHandle } from "react";
-import { useCreateBlockNote } from "@blocknote/react";
+import {
+  useCreateBlockNote,
+  getDefaultReactSlashMenuItems,
+  SuggestionMenuController,
+  type DefaultReactSuggestionItem,
+} from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
-import type { PartialBlock } from "@blocknote/core";
+import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
+import { en } from "@blocknote/core/locales";
+import { Type } from "lucide-react";
 import { useTheme } from "@/lib/theme";
+import { StatementBlock, STATEMENT_VARIANTS, type StatementVariant } from "@/components/StatementBlock";
 
 export type BlockEditorHandle = { focus: () => void };
 
+// Schema = the built-in blocks + our "art statement" block.
+const schema = BlockNoteSchema.create({
+  blockSpecs: { ...defaultBlockSpecs, statement: StatementBlock() },
+});
+
 // Parse the stored body (BlockNote document JSON). Empty/legacy values start a
 // fresh empty document.
-function parseInitial(value: string): PartialBlock[] | undefined {
+function parseInitial(value: string): any[] | undefined {
   if (!value || !value.trim()) return undefined;
   try {
     const blocks = JSON.parse(value);
-    if (Array.isArray(blocks) && blocks.length > 0) return blocks as PartialBlock[];
+    if (Array.isArray(blocks) && blocks.length > 0) return blocks;
   } catch {
-    // Not JSON (e.g. an older plain-text body) — drop it into a paragraph.
     return [{ type: "paragraph", content: value }];
   }
   return undefined;
 }
 
+const STATEMENT_LABELS: Record<StatementVariant, { title: string; subtext: string }> = {
+  grand: { title: "Statement – stor", subtext: "Stor Fraunces-rubrik" },
+  editorial: { title: "Statement – editorial", subtext: "Kursiv, lätt display-serif" },
+  stamp: { title: "Statement – stämpel", subtext: "Liten, spärrad versal etikett" },
+};
+
 /**
  * Notion-style block editor. Slash menu, headings, lists, checkboxes, quote
- * (> + space), divider (---), tables, images — all live as you type. The body
- * is persisted as BlockNote document JSON.
+ * (> + space), divider (---), tables, images, and custom art-statement presets —
+ * all live. The body is persisted as BlockNote document JSON.
  */
 export const BlockEditor = forwardRef<BlockEditorHandle, {
   value: string;
   onChange: (json: string) => void;
 }>(function BlockEditor({ value, onChange }, ref) {
   const { theme } = useTheme();
-  const editor = useCreateBlockNote({ initialContent: parseInitial(value) });
+  const editor = useCreateBlockNote({
+    schema,
+    initialContent: parseInitial(value),
+    // No Swedish locale ships with BlockNote — override the visible placeholder.
+    dictionary: {
+      ...en,
+      placeholders: {
+        ...en.placeholders,
+        default: "Skriv något, eller tryck '/' för kommandon",
+        emptyDocument: "Skriv något, eller tryck '/' för kommandon",
+      },
+    },
+  });
 
   useImperativeHandle(ref, () => ({
     focus: () => editor.focus(),
   }), [editor]);
+
+  function statementItems(): DefaultReactSuggestionItem[] {
+    return STATEMENT_VARIANTS.map((variant) => ({
+      ...STATEMENT_LABELS[variant],
+      aliases: ["statement", "art", "rubrik", "typografi", variant],
+      group: "Statements",
+      icon: <Type size={18} />,
+      onItemClick: () => {
+        const cur = editor.getTextCursorPosition().block;
+        const empty = !cur.content || (Array.isArray(cur.content) && cur.content.length === 0);
+        const block = { type: "statement" as const, props: { variant } };
+        if (empty) editor.replaceBlocks([cur], [block as any]);
+        else editor.insertBlocks([block as any], cur, "after");
+      },
+    }));
+  }
 
   return (
     <BlockNoteView
@@ -44,6 +90,21 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
       theme={theme === "dark" ? "dark" : "light"}
       onChange={() => onChange(JSON.stringify(editor.document))}
       className="arkiv-editor"
-    />
+      slashMenu={false}
+    >
+      <SuggestionMenuController
+        triggerCharacter="/"
+        getItems={async (query) => {
+          const items = [...getDefaultReactSlashMenuItems(editor), ...statementItems()];
+          const q = query.trim().toLowerCase();
+          if (!q) return items;
+          return items.filter(
+            (it) =>
+              it.title.toLowerCase().includes(q) ||
+              (it.aliases ?? []).some((a) => a.toLowerCase().includes(q)),
+          );
+        }}
+      />
+    </BlockNoteView>
   );
 });

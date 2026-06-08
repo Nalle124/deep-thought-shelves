@@ -13,7 +13,6 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const { data: lib } = useQuery({ queryKey: ["library"], queryFn: fetchLibrary });
 
   const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
   const initRef = useRef<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<BlockEditorHandle>(null);
@@ -21,7 +20,6 @@ export function PageEditor({ pageId }: { pageId: string }) {
   useEffect(() => {
     if (page && initRef.current !== page.id) {
       setTitle(page.title);
-      setBody(page.body);
       initRef.current = page.id;
       // A freshly created page has a blank title — drop the cursor straight into
       // the heading field so you can start typing immediately.
@@ -96,11 +94,11 @@ export function PageEditor({ pageId }: { pageId: string }) {
           <BlockEditor
             key={pageId}
             ref={bodyRef}
-            value={body}
-            onChange={(v) => {
-              setBody(v);
-              scheduleSave({ body: v });
-            }}
+            // Initialise from the loaded page body (not the debounced `body`
+            // state, which is empty on first render). Keyed by pageId so it
+            // mounts once per page with the correct content.
+            value={page.body}
+            onChange={(v) => scheduleSave({ body: v })}
           />
         </article>
       </div>
