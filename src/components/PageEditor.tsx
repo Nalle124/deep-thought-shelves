@@ -146,8 +146,8 @@ const MarkdownEditor = forwardRef<{ focus: () => void }, { value: string; onChan
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => setEditing(false)}
-        placeholder={"Börja skriva…\n\nProva: # rubrik, - punkt, [ ] att göra, --- avdelare"}
-        className="w-full bg-transparent outline-none resize-none text-lg leading-relaxed text-ink/85 placeholder:opacity-30 font-sans min-h-[60vh]"
+        placeholder={'Börja skriva…\n\nProva: # rubrik, - punkt, [ ] att göra, " citat, --- avdelare'}
+        className="w-full bg-transparent outline-none resize-none text-[1.18rem] leading-[1.8] text-ink/85 placeholder:opacity-30 font-text min-h-[60vh]"
       />
     );
   }
@@ -155,7 +155,7 @@ const MarkdownEditor = forwardRef<{ focus: () => void }, { value: string; onChan
   return (
     <div
       onClick={() => setEditing(true)}
-      className="w-full text-lg leading-relaxed text-ink/85 min-h-[60vh] cursor-text"
+      className="w-full text-[1.18rem] leading-[1.8] text-ink/85 min-h-[60vh] cursor-text font-text"
     >
       <RenderedMarkdown source={value} onToggleCheckbox={(idx) => {
         const lines = value.split("\n");
@@ -180,7 +180,12 @@ function RenderedMarkdown({ source, onToggleCheckbox }: {
     const trimmed = line.trim();
 
     if (trimmed === "---") {
-      out.push(<hr key={i} className="border-none h-px bg-border my-10" />);
+      // Editorial divider — a centered mark rather than a hard rule.
+      out.push(
+        <div key={i} className="my-12 flex items-center justify-center" aria-hidden>
+          <span className="text-ink/25 text-base tracking-[0.6em]">✦</span>
+        </div>
+      );
       i++; continue;
     }
 
@@ -194,8 +199,25 @@ function RenderedMarkdown({ source, onToggleCheckbox }: {
       i++; continue;
     }
     if ((m = line.match(/^#\s+(.*)$/))) {
-      out.push(<h1 key={i} className="font-serif italic text-4xl mt-12 mb-5 text-ink">{m[1]}</h1>);
+      out.push(<h1 key={i} className="font-serif italic text-4xl sm:text-5xl mt-12 mb-5 text-ink tracking-tight">{m[1]}</h1>);
       i++; continue;
+    }
+
+    // Quote block — a line starting with " or > followed by a space.
+    if (line.match(/^\s*["“>]\s+/)) {
+      const items: { idx: number; text: string }[] = [];
+      while (i < lines.length && lines[i].match(/^\s*["“>]\s+/)) {
+        items.push({ idx: i, text: lines[i].replace(/^\s*["“>]\s+/, "") });
+        i++;
+      }
+      out.push(
+        <blockquote key={`q-${items[0].idx}`} className="my-6 border-l-2 border-ink/25 pl-5 sm:pl-6">
+          {items.map((it) => (
+            <p key={it.idx} className="font-text italic text-[1.3rem] leading-relaxed text-ink/70">{it.text}</p>
+          ))}
+        </blockquote>
+      );
+      continue;
     }
 
     // checkbox block
