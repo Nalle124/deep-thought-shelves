@@ -5,6 +5,7 @@ export type Folder = {
   user_id: string;
   parent_id: string | null;
   name: string;
+  icon: string | null;
   position: number;
   created_at: string;
   updated_at: string;
@@ -42,12 +43,12 @@ export async function fetchPage(id: string): Promise<Page> {
   return data as Page;
 }
 
-export async function createFolder(input: { name: string; parent_id: string | null }) {
+export async function createFolder(input: { name: string; parent_id: string | null; icon?: string | null }) {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("folders")
-    .insert({ name: input.name, parent_id: input.parent_id, user_id: u.user.id })
+    .insert({ name: input.name, parent_id: input.parent_id, user_id: u.user.id, icon: input.icon ?? null })
     .select()
     .single();
   if (error) throw error;
@@ -91,5 +92,20 @@ export async function renameFolder(id: string, name: string) {
 
 export async function renamePage(id: string, title: string) {
   const { error } = await supabase.from("pages").update({ title }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setFolderIcon(id: string, icon: string | null) {
+  const { error } = await supabase.from("folders").update({ icon }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function moveFolder(id: string, parent_id: string | null) {
+  const { error } = await supabase.from("folders").update({ parent_id }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function movePage(id: string, folder_id: string | null) {
+  const { error } = await supabase.from("pages").update({ folder_id }).eq("id", id);
   if (error) throw error;
 }
