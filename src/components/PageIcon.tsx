@@ -1,15 +1,14 @@
 import { useState, type MouseEvent } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EMOJI_GROUPS, randomEmoji } from "@/lib/emoji";
-import { Dices } from "lucide-react";
+import { Dices, Smile } from "lucide-react";
 
 type Size = "sm" | "lg";
 
 /**
- * Inline page icon. Behaviour mirrors the "random omen" idea:
- *  - no icon yet  → a single click drops a *random* emoji on the page (fast, surprising)
- *  - has an icon  → click opens an anchored popover (not a modal) to re-roll,
- *                   pick freely from the full set, or remove it.
+ * Inline page icon. Clicking always opens an anchored picker (not a modal) where
+ * you can choose any of Apple's native emoji, roll a random one (🎲, just one
+ * option among the rest), or remove it.
  */
 export function PageIcon({
   icon,
@@ -21,48 +20,40 @@ export function PageIcon({
   size?: Size;
 }) {
   const [open, setOpen] = useState(false);
+  const stop = (e: MouseEvent) => e.stopPropagation();
 
-  const stop = (e: MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  if (!icon) {
-    return (
-      <button
-        type="button"
-        onClick={(e) => {
-          stop(e);
-          onChange(randomEmoji());
-        }}
-        aria-label="Lägg till ikon"
-        className={
-          size === "lg"
-            ? "size-14 rounded-xl border border-dashed border-border text-muted-foreground/50 hover:text-ink hover:border-ink/40 flex items-center justify-center text-2xl transition-colors"
-            : "size-5 rounded text-muted-foreground/40 hover:text-ink hover:bg-ink/5 flex items-center justify-center shrink-0 transition-colors"
-        }
-      >
-        <Dices className={size === "lg" ? "size-6" : "size-3.5"} />
-      </button>
-    );
-  }
+  const trigger = icon ? (
+    <button
+      type="button"
+      onClick={stop}
+      aria-label="Byt ikon"
+      className={
+        size === "lg"
+          ? "size-16 rounded-xl hover:bg-ink/5 flex items-center justify-center text-5xl leading-none transition-colors"
+          : "size-5 flex items-center justify-center text-sm leading-none shrink-0 hover:scale-110 transition-transform"
+      }
+    >
+      <span aria-hidden>{icon}</span>
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={stop}
+      aria-label="Lägg till ikon"
+      className={
+        size === "lg"
+          ? "group/icon inline-flex items-center gap-2 px-2.5 py-1.5 -ml-1 rounded-md text-sm text-muted-foreground/70 hover:text-ink hover:bg-ink/5 transition-colors"
+          : "size-5 rounded text-muted-foreground/40 hover:text-ink hover:bg-ink/5 flex items-center justify-center shrink-0 transition-colors"
+      }
+    >
+      <Smile className={size === "lg" ? "size-4" : "size-3.5"} />
+      {size === "lg" && <span>Lägg till ikon</span>}
+    </button>
+  );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          onClick={stop}
-          aria-label="Byt ikon"
-          className={
-            size === "lg"
-              ? "size-16 rounded-xl hover:bg-ink/5 flex items-center justify-center text-5xl leading-none transition-colors"
-              : "size-5 flex items-center justify-center text-sm leading-none shrink-0 hover:scale-110 transition-transform"
-          }
-        >
-          <span aria-hidden>{icon}</span>
-        </button>
-      </PopoverTrigger>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align="start"
         side={size === "lg" ? "bottom" : "right"}
@@ -74,19 +65,19 @@ export function PageIcon({
             type="button"
             onClick={() => onChange(randomEmoji(icon))}
             className="flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium rounded-md bg-ink/5 hover:bg-ink/10 transition-colors"
+            title="Slumpa en emoji"
           >
             <Dices className="size-3.5" /> Slumpa
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              onChange(null);
-              setOpen(false);
-            }}
-            className="px-2.5 py-1.5 text-xs text-muted-foreground hover:text-ink transition-colors"
-          >
-            Ta bort
-          </button>
+          {icon && (
+            <button
+              type="button"
+              onClick={() => { onChange(null); setOpen(false); }}
+              className="px-2.5 py-1.5 text-xs text-muted-foreground hover:text-ink transition-colors"
+            >
+              Ta bort
+            </button>
+          )}
         </div>
         <div className="max-h-64 overflow-y-auto p-2 space-y-3">
           {EMOJI_GROUPS.map((group) => (
@@ -99,10 +90,7 @@ export function PageIcon({
                   <button
                     key={e}
                     type="button"
-                    onClick={() => {
-                      onChange(e);
-                      setOpen(false);
-                    }}
+                    onClick={() => { onChange(e); setOpen(false); }}
                     className={`aspect-square text-lg rounded hover:bg-ink/10 transition-colors ${
                       icon === e ? "bg-accent/20" : ""
                     }`}
