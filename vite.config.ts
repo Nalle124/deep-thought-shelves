@@ -12,6 +12,13 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Pre-bundle the heavy editor deps so the dev server doesn't churn (repeated
+  // full reloads) discovering them on demand.
+  vite: {
+    optimizeDeps: {
+      include: ["@blocknote/core", "@blocknote/react", "@blocknote/mantine"],
+    },
+  },
   // Declaring `nitro` explicitly makes the deploy build run outside Lovable's sandbox too
   // (needed for Vercel/CLI builds). Preset is env-driven so Lovable's Cloudflare deploy
   // still works unchanged; set NITRO_PRESET=vercel in the Vercel project to target Vercel.

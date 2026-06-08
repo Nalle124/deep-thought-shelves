@@ -77,3 +77,31 @@
     font-family: var(--font-sans);
   }
 }
+
+/* --- BlockNote editor, themed to the Arkiv look --- */
+.arkiv-editor {
+  --bn-colors-editor-background: transparent;
+  --bn-colors-editor-text: var(--ink);
+  --bn-font-family: var(--font-text);
+}
+.arkiv-editor .bn-editor {
+  /* Align block text with the page title (kill BlockNote's gutter padding;
+     hover controls sit in the page margin). */
+  padding-inline: 0;
+  font-family: var(--font-text);
+  font-size: 1.18rem;
+  line-height: 1.8;
+  color: var(--ink);
+}
+.arkiv-editor [data-content-type="heading"] {
+  font-family: var(--font-serif);
+  font-style: italic;
+  letter-spacing: -0.01em;
+}
+.arkiv-editor [data-content-type="quote"] {
+  font-family: var(--font-text);
+  font-style: italic;
+  border-left: 2px solid color-mix(in oklab, var(--ink) 25%, transparent);
+  padding-left: 1.25rem;
+  color: color-mix(in oklab, var(--ink) 70%, transparent);
+}
