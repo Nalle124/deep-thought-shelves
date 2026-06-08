@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, forwardRef, useImperativeHandle } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchPage, fetchLibrary, updatePage, ancestorTitles } from "@/lib/library";
 import { PageIcon } from "@/components/PageIcon";
@@ -15,6 +15,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const [body, setBody] = useState("");
   const initRef = useRef<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<{ focus: () => void }>(null);
 
   useEffect(() => {
     if (page && initRef.current !== page.id) {
@@ -82,9 +83,17 @@ export function PageEditor({ pageId }: { pageId: string }) {
               setTitle(e.target.value);
               scheduleSave({ title: e.target.value });
             }}
+            onKeyDown={(e) => {
+              // Enter in the title drops you into the body, like Notion.
+              if (e.key === "Enter") {
+                e.preventDefault();
+                bodyRef.current?.focus();
+              }
+            }}
             className="w-full bg-transparent font-serif text-4xl sm:text-5xl italic tracking-tight outline-none mb-8 sm:mb-10 placeholder:opacity-20"
           />
           <MarkdownEditor
+            ref={bodyRef}
             value={body}
             onChange={(v) => {
               setBody(v);
@@ -102,9 +111,24 @@ export function PageEditor({ pageId }: { pageId: string }) {
    would over-complicate. Instead: textarea on top while focused; rendered view
    when blurred. Simpler & matches a writerly feel. ---------- */
 
-function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+const MarkdownEditor = forwardRef<{ focus: () => void }, { value: string; onChange: (v: string) => void }>(
+  function MarkdownEditor({ value, onChange }, ref) {
   const [editing, setEditing] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
+
+  // Let the title hand focus down into the body (switches into edit mode first).
+  useImperativeHandle(ref, () => ({
+    focus() {
+      setEditing(true);
+      requestAnimationFrame(() => {
+        const ta = textRef.current;
+        if (!ta) return;
+        ta.focus();
+        const end = ta.value.length;
+        ta.setSelectionRange(end, end);
+      });
+    },
+  }));
 
   // auto-resize
   useEffect(() => {
@@ -142,7 +166,7 @@ function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: stri
       }} />
     </div>
   );
-}
+});
 
 function RenderedMarkdown({ source, onToggleCheckbox }: {
   source: string; onToggleCheckbox: (lineIdx: number) => void;
