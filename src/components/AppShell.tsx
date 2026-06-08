@@ -95,6 +95,14 @@ function SidebarBody({ pages, activePageId, onNavigate }: {
     mutationFn: ({ id, parent }: { id: string; parent: string | null }) => movePage(id, parent),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
   });
+  const newPageMut = useMutation({
+    mutationFn: () => createPage({ parent_id: null }),
+    onSuccess: (p) => {
+      qc.invalidateQueries({ queryKey: ["library"] });
+      navigate({ to: "/app/page/$pageId", params: { pageId: p.id } });
+      onNavigate();
+    },
+  });
   function handleRootDrop(e: DragEvent) {
     e.preventDefault();
     const data = parseDrag(e);
@@ -105,13 +113,24 @@ function SidebarBody({ pages, activePageId, onNavigate }: {
     <aside className="w-72 max-w-full h-full shrink-0 md:border-r border-border flex flex-col bg-paper">
       <div className="p-5 sm:p-6 flex items-center justify-between">
         <Link to="/app" onClick={onNavigate} className="font-serif italic text-2xl tracking-tight">Arkiv</Link>
-        <button
-          onClick={toggle}
-          className="p-1.5 hover:bg-ink/5 rounded-md transition-colors"
-          aria-label="Byt tema"
-        >
-          {theme === "light" ? <Moon className="size-4 opacity-60" /> : <Sun className="size-4 opacity-60" />}
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => newPageMut.mutate()}
+            disabled={newPageMut.isPending}
+            className="p-1.5 hover:bg-ink/5 rounded-md transition-colors disabled:opacity-50"
+            aria-label="Ny sida"
+            title="Ny sida"
+          >
+            <Plus className="size-4 opacity-60" />
+          </button>
+          <button
+            onClick={toggle}
+            className="p-1.5 hover:bg-ink/5 rounded-md transition-colors"
+            aria-label="Byt tema"
+          >
+            {theme === "light" ? <Moon className="size-4 opacity-60" /> : <Sun className="size-4 opacity-60" />}
+          </button>
+        </div>
       </div>
 
       <nav
