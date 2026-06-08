@@ -67,7 +67,7 @@ export async function createPage(input: { title: string; folder_id: string | nul
 }
 
 export async function updatePage(input: { id: string; title?: string; body?: string }) {
-  const patch: Record<string, unknown> = {};
+  const patch: { title?: string; body?: string } = {};
   if (input.title !== undefined) patch.title = input.title;
   if (input.body !== undefined) patch.body = input.body;
   const { error } = await supabase.from("pages").update(patch).eq("id", input.id);
