@@ -14,53 +14,13 @@ export type Database = {
   }
   public: {
     Tables: {
-      folders: {
-        Row: {
-          created_at: string
-          icon: string | null
-          id: string
-          name: string
-          parent_id: string | null
-          position: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          icon?: string | null
-          id?: string
-          name: string
-          parent_id?: string | null
-          position?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          icon?: string | null
-          id?: string
-          name?: string
-          parent_id?: string | null
-          position?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "folders_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "folders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       pages: {
         Row: {
           body: string
           created_at: string
-          folder_id: string | null
+          icon: string | null
           id: string
+          parent_id: string | null
           position: number
           title: string
           updated_at: string
@@ -69,8 +29,9 @@ export type Database = {
         Insert: {
           body?: string
           created_at?: string
-          folder_id?: string | null
+          icon?: string | null
           id?: string
+          parent_id?: string | null
           position?: number
           title?: string
           updated_at?: string
@@ -79,8 +40,9 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
-          folder_id?: string | null
+          icon?: string | null
           id?: string
+          parent_id?: string | null
           position?: number
           title?: string
           updated_at?: string
@@ -88,10 +50,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "pages_folder_id_fkey"
-            columns: ["folder_id"]
+            foreignKeyName: "pages_parent_id_fkey"
+            columns: ["parent_id"]
             isOneToOne: false
-            referencedRelation: "folders"
+            referencedRelation: "pages"
             referencedColumns: ["id"]
           },
         ]

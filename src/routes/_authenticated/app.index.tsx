@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { fetchLibrary } from "@/lib/library";
-import { FileText, Folder as FolderIcon } from "lucide-react";
+import { FileText, FolderTree } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   component: Overview,
@@ -34,8 +34,9 @@ function greetingForToday(): string {
 
 function Overview() {
   const { data: lib } = useQuery({ queryKey: ["library"], queryFn: fetchLibrary });
-  const folders = lib?.folders ?? [];
   const pages = lib?.pages ?? [];
+  // A "collection" is just a page that contains other pages.
+  const collections = pages.filter((p) => pages.some((c) => c.parent_id === p.id)).length;
   const recent = [...pages]
     .sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at))
     .slice(0, 6);
@@ -46,12 +47,12 @@ function Overview() {
         <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Arkiv</p>
         <h1 className="font-serif italic text-4xl sm:text-6xl tracking-tight">{greetingForToday()}</h1>
         <p className="mt-4 text-muted-foreground text-sm sm:text-base max-w-md">
-          En stilla plats för dina tankar. {pages.length} anteckning{pages.length === 1 ? "" : "ar"} i {folders.length} mapp{folders.length === 1 ? "" : "ar"}.
+          En stilla plats för dina tankar. {pages.length} sid{pages.length === 1 ? "a" : "or"} i arkivet.
         </p>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-10">
-          <Stat label="Anteckningar" value={pages.length} icon={<FileText className="size-4 opacity-40" />} />
-          <Stat label="Mappar" value={folders.length} icon={<FolderIcon className="size-4 opacity-40" />} />
+          <Stat label="Sidor" value={pages.length} icon={<FileText className="size-4 opacity-40" />} />
+          <Stat label="Samlingar" value={collections} icon={<FolderTree className="size-4 opacity-40" />} />
         </div>
 
         <section className="mt-12">
@@ -63,7 +64,7 @@ function Overview() {
           ) : (
             <ul className="divide-y divide-border border-t border-b border-border">
               {recent.map((p) => {
-                const f = folders.find((x) => x.id === p.folder_id);
+                const parent = pages.find((x) => x.id === p.parent_id);
                 return (
                   <li key={p.id}>
                     <Link
@@ -71,13 +72,16 @@ function Overview() {
                       params={{ pageId: p.id }}
                       className="flex items-center justify-between gap-4 py-3 sm:py-4 hover:opacity-70 transition-opacity"
                     >
-                      <div className="min-w-0">
-                        <p className="font-serif italic text-lg sm:text-xl truncate">{p.title || "Namnlös"}</p>
-                        {f && (
-                          <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mt-1 truncate">
-                            {f.icon ? `${f.icon}  ` : ""}{f.name}
-                          </p>
-                        )}
+                      <div className="min-w-0 flex items-center gap-3">
+                        {p.icon && <span className="text-lg shrink-0" aria-hidden>{p.icon}</span>}
+                        <div className="min-w-0">
+                          <p className="font-serif italic text-lg sm:text-xl truncate">{p.title || "Namnlös"}</p>
+                          {parent && (
+                            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mt-1 truncate">
+                              {parent.icon ? `${parent.icon}  ` : ""}{parent.title || "Namnlös"}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <span className="text-[11px] uppercase tracking-widest text-muted-foreground shrink-0">
                         {timeAgo(p.updated_at)}

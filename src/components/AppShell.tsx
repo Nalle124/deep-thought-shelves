@@ -1,14 +1,14 @@
-import { useState, useMemo, type ReactNode, type DragEvent } from "react";
+import { useState, type ReactNode, type DragEvent, type MouseEvent } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchLibrary, createFolder, createPage, deleteFolder, deletePage,
-  renameFolder, renamePage, moveFolder, movePage, setFolderIcon,
-  type Folder, type Page,
+  fetchLibrary, createPage, deletePage, renamePage, movePage, setPageIcon,
+  childrenOf, hasChildren, isSelfOrDescendant, type Page,
 } from "@/lib/library";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/lib/theme";
 import { toast } from "sonner";
+import { PageIcon } from "@/components/PageIcon";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -17,53 +17,46 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Popover, PopoverContent, PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
-  ChevronRight, FileText, Folder as FolderIcon, MoreHorizontal, Plus,
-  Sun, Moon, LogOut, Trash2, Pencil, Menu, Smile,
+  ChevronRight, MoreHorizontal, Plus, Sun, Moon, LogOut, Trash2, Pencil, Menu,
 } from "lucide-react";
 
-const EMOJI_CHOICES = [
-  "📁","📂","📔","📕","📗","📘","📙","📓","📒","📚","📝","✏️","🖊️","🖋️","📌","📎","🗂️","🗃️","🗒️","📅",
-  "📆","🗓️","⭐","✨","🌟","💡","🔥","🎯","🎨","🎵","☕","🌱","🌿","🍃","🌳","🌊","🌙","☀️","⛅","🌈",
-  "❤️","🧡","💛","💚","💙","💜","🤍","🖤","🤎","🏠","🏡","🏢","🏛️","✈️","🚗","🎒","💼","👤","👥","🐾",
-];
+const DRAG_TYPE = "application/x-arkiv";
+type DragPayload = { id: string };
+
+function parseDrag(e: DragEvent): DragPayload | null {
+  const raw = e.dataTransfer.getData(DRAG_TYPE);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+function setDrag(e: DragEvent, payload: DragPayload) {
+  e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(payload));
+  e.dataTransfer.effectAllowed = "move";
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { data: lib } = useQuery({ queryKey: ["library"], queryFn: fetchLibrary });
   const params = useParams({ strict: false }) as { pageId?: string };
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const folders = lib?.folders ?? [];
   const pages = lib?.pages ?? [];
-  const activeFolderId = getActiveFolderId(pages, params.pageId);
 
   return (
     <div className="flex h-[100dvh] w-full bg-paper text-ink font-sans overflow-hidden">
-      {/* Desktop sidebar */}
       <div className="hidden md:flex">
-        <SidebarBody folders={folders} pages={pages} activePageId={params.pageId} onNavigate={() => {}} />
+        <SidebarBody pages={pages} activePageId={params.pageId} onNavigate={() => {}} />
       </div>
 
-      {/* Mobile sidebar */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="p-0 w-[85vw] max-w-xs bg-paper border-border">
-          <SidebarBody
-            folders={folders}
-            pages={pages}
-            activePageId={params.pageId}
-            onNavigate={() => setMobileOpen(false)}
-          />
+          <SidebarBody pages={pages} activePageId={params.pageId} onNavigate={() => setMobileOpen(false)} />
         </SheetContent>
       </Sheet>
 
       <main className="flex-1 flex flex-col relative overflow-hidden min-w-0">
-        {/* Mobile top bar */}
         <div className="md:hidden h-12 border-b border-border flex items-center px-3 shrink-0">
           <button
             onClick={() => setMobileOpen(true)}
@@ -72,29 +65,23 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Menu className="size-5" />
           </button>
-          <Link to="/app" className="font-serif italic text-xl tracking-tight ml-1">Anthology</Link>
+          <Link to="/app" className="font-serif italic text-xl tracking-tight ml-1">Arkiv</Link>
         </div>
         {children}
-        <FloatingAdd activeFolderId={activeFolderId} />
+        <FloatingAdd />
       </main>
     </div>
   );
 }
 
-function getActiveFolderId(pages: Page[], pageId?: string): string | null {
-  if (!pageId) return null;
-  return pages.find((p) => p.id === pageId)?.folder_id ?? null;
-}
-
-function SidebarBody({ folders, pages, activePageId, onNavigate }: {
-  folders: Folder[]; pages: Page[]; activePageId?: string; onNavigate: () => void;
+function SidebarBody({ pages, activePageId, onNavigate }: {
+  pages: Page[]; activePageId?: string; onNavigate: () => void;
 }) {
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  const rootFolders = folders.filter((f) => f.parent_id === null);
-  const rootPages = pages.filter((p) => p.folder_id === null);
+  const roots = childrenOf(pages, null);
 
   async function signOut() {
     await qc.cancelQueries();
@@ -103,22 +90,15 @@ function SidebarBody({ folders, pages, activePageId, onNavigate }: {
     navigate({ to: "/auth", replace: true });
   }
 
-  // Drop on root = unset parent
-  const moveFolderMut = useMutation({
-    mutationFn: ({ id, parent }: { id: string; parent: string | null }) => moveFolder(id, parent),
+  // Drop onto empty sidebar space = move to top level.
+  const moveMut = useMutation({
+    mutationFn: ({ id, parent }: { id: string; parent: string | null }) => movePage(id, parent),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
   });
-  const movePageMut = useMutation({
-    mutationFn: ({ id, folder }: { id: string; folder: string | null }) => movePage(id, folder),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
-  });
-
   function handleRootDrop(e: DragEvent) {
     e.preventDefault();
     const data = parseDrag(e);
-    if (!data) return;
-    if (data.kind === "folder") moveFolderMut.mutate({ id: data.id, parent: null });
-    else movePageMut.mutate({ id: data.id, folder: null });
+    if (data) moveMut.mutate({ id: data.id, parent: null });
   }
 
   return (
@@ -139,13 +119,10 @@ function SidebarBody({ folders, pages, activePageId, onNavigate }: {
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleRootDrop}
       >
-        {rootFolders.map((f) => (
-          <FolderNode key={f.id} folder={f} folders={folders} pages={pages} depth={0} activePageId={activePageId} onNavigate={onNavigate} />
+        {roots.map((p) => (
+          <PageNode key={p.id} page={p} pages={pages} depth={0} activePageId={activePageId} onNavigate={onNavigate} />
         ))}
-        {rootPages.map((p) => (
-          <PageNode key={p.id} page={p} depth={0} active={p.id === activePageId} onNavigate={onNavigate} />
-        ))}
-        {rootFolders.length === 0 && rootPages.length === 0 && (
+        {roots.length === 0 && (
           <p className="px-3 py-8 text-xs text-muted-foreground italic">
             Tomt arkiv. Tryck <span className="font-medium">+</span> för att börja.
           </p>
@@ -166,89 +143,101 @@ function SidebarBody({ folders, pages, activePageId, onNavigate }: {
   );
 }
 
-type DragPayload = { kind: "folder" | "page"; id: string };
-function parseDrag(e: DragEvent): DragPayload | null {
-  const raw = e.dataTransfer.getData("application/x-anthology");
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-function setDrag(e: DragEvent, payload: DragPayload) {
-  e.dataTransfer.setData("application/x-anthology", JSON.stringify(payload));
-  e.dataTransfer.effectAllowed = "move";
-}
-
-function FolderNode({ folder, folders, pages, depth, activePageId, onNavigate }: {
-  folder: Folder; folders: Folder[]; pages: Page[]; depth: number; activePageId?: string; onNavigate: () => void;
+function PageNode({ page, pages, depth, activePageId, onNavigate }: {
+  page: Page; pages: Page[]; depth: number; activePageId?: string; onNavigate: () => void;
 }) {
   const [open, setOpen] = useState(true);
   const [hover, setHover] = useState(false);
   const qc = useQueryClient();
-  const children = folders.filter((f) => f.parent_id === folder.id);
-  const childPages = pages.filter((p) => p.folder_id === folder.id);
+  const navigate = useNavigate();
 
-  const moveFolderMut = useMutation({
-    mutationFn: ({ id, parent }: { id: string; parent: string | null }) => moveFolder(id, parent),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
-  });
-  const movePageMut = useMutation({
-    mutationFn: ({ id, fid }: { id: string; fid: string | null }) => movePage(id, fid),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
-  });
+  const kids = childrenOf(pages, page.id);
+  const isParent = kids.length > 0;
+  const active = page.id === activePageId;
 
-  function isDescendant(maybeAncestor: string, target: string): boolean {
-    if (maybeAncestor === target) return true;
-    const f = folders.find((x) => x.id === target);
-    if (!f || !f.parent_id) return false;
-    return isDescendant(maybeAncestor, f.parent_id);
-  }
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["library"] });
+
+  const moveMut = useMutation({
+    mutationFn: ({ id, parent }: { id: string; parent: string | null }) => movePage(id, parent),
+    onSuccess: invalidate,
+  });
+  const iconMut = useMutation({
+    mutationFn: (icon: string | null) => setPageIcon(page.id, icon),
+    onSuccess: invalidate,
+  });
+  const addChildMut = useMutation({
+    mutationFn: () => createPage({ parent_id: page.id }),
+    onSuccess: (child) => {
+      invalidate();
+      setOpen(true);
+      navigate({ to: "/app/page/$pageId", params: { pageId: child.id } });
+      onNavigate();
+    },
+  });
 
   function onDrop(e: DragEvent) {
     e.preventDefault();
     e.stopPropagation();
     setHover(false);
     const data = parseDrag(e);
-    if (!data) return;
-    if (data.kind === "folder") {
-      if (data.id === folder.id) return;
-      if (isDescendant(data.id, folder.id)) {
-        toast.error("Kan inte flytta en mapp in i sig själv");
-        return;
-      }
-      moveFolderMut.mutate({ id: data.id, parent: folder.id });
-    } else {
-      movePageMut.mutate({ id: data.id, fid: folder.id });
+    if (!data || data.id === page.id) return;
+    if (isSelfOrDescendant(pages, data.id, page.id)) {
+      toast.error("Kan inte flytta en sida in i sig själv");
+      return;
     }
+    moveMut.mutate({ id: data.id, parent: page.id });
     setOpen(true);
   }
+
+  const stop = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); };
 
   return (
     <div>
       <div
         draggable
-        onDragStart={(e) => { e.stopPropagation(); setDrag(e, { kind: "folder", id: folder.id }); }}
+        onDragStart={(e) => { e.stopPropagation(); setDrag(e, { id: page.id }); }}
         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setHover(true); }}
         onDragLeave={() => setHover(false)}
         onDrop={onDrop}
-        className={hover ? "bg-accent/15 rounded-sm" : ""}
+        className={`group flex items-center gap-1 pr-1 rounded-sm transition-colors ${
+          hover ? "bg-accent/15" : active ? "bg-accent/15" : "hover:bg-ink/5"
+        }`}
+        style={{ paddingLeft: `${depth * 12 + 4}px` }}
       >
-        <Row depth={depth} onClick={() => setOpen(!open)}>
-          <ChevronRight className={`size-3 opacity-40 transition-transform shrink-0 ${open ? "rotate-90" : ""}`} />
-          {folder.icon ? (
-            <span className="text-sm leading-none shrink-0" aria-hidden>{folder.icon}</span>
-          ) : (
-            <FolderIcon className="size-3.5 opacity-50 shrink-0" />
-          )}
-          <span className="truncate flex-1 text-left">{folder.name}</span>
-          <FolderMenu folder={folder} />
-        </Row>
+        <button
+          onClick={() => setOpen(!open)}
+          className={`size-5 flex items-center justify-center shrink-0 rounded hover:bg-ink/10 ${isParent ? "" : "invisible"}`}
+          aria-label={open ? "Fäll ihop" : "Fäll ut"}
+        >
+          <ChevronRight className={`size-3 opacity-50 transition-transform ${open ? "rotate-90" : ""}`} />
+        </button>
+
+        <PageIcon icon={page.icon} onChange={(ic) => iconMut.mutate(ic)} size="sm" />
+
+        <Link
+          to="/app/page/$pageId"
+          params={{ pageId: page.id }}
+          onClick={onNavigate}
+          draggable={false}
+          className={`flex-1 min-w-0 py-1.5 text-sm truncate ${active ? "text-accent" : "opacity-80 group-hover:opacity-100"}`}
+        >
+          {page.title || "Namnlös"}
+        </Link>
+
+        <button
+          onClick={(e) => { stop(e); addChildMut.mutate(); }}
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-ink/10 rounded shrink-0 transition-opacity"
+          aria-label="Lägg till undersida"
+        >
+          <Plus className="size-3.5" />
+        </button>
+        <RowMenu page={page} />
       </div>
-      {open && (
-        <div className="ml-3 border-l border-border/60 pl-1">
-          {children.map((f) => (
-            <FolderNode key={f.id} folder={f} folders={folders} pages={pages} depth={depth + 1} activePageId={activePageId} onNavigate={onNavigate} />
-          ))}
-          {childPages.map((p) => (
-            <PageNode key={p.id} page={p} depth={depth + 1} active={p.id === activePageId} onNavigate={onNavigate} />
+
+      {isParent && open && (
+        <div className="ml-3 border-l border-border/60">
+          {kids.map((c) => (
+            <PageNode key={c.id} page={c} pages={pages} depth={depth + 1} activePageId={activePageId} onNavigate={onNavigate} />
           ))}
         </div>
       )}
@@ -256,143 +245,7 @@ function FolderNode({ folder, folders, pages, depth, activePageId, onNavigate }:
   );
 }
 
-function PageNode({ page, depth, active, onNavigate }: { page: Page; depth: number; active: boolean; onNavigate: () => void }) {
-  return (
-    <div
-      draggable
-      onDragStart={(e) => { e.stopPropagation(); setDrag(e, { kind: "page", id: page.id }); }}
-    >
-      <Link
-        to="/app/page/$pageId"
-        params={{ pageId: page.id }}
-        onClick={onNavigate}
-        // Let the wrapper div own the drag (anchors are natively draggable as a
-        // URL, which would otherwise hijack the move payload).
-        draggable={false}
-        className={`group flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm transition-colors ${
-          active ? "bg-accent/15 text-accent" : "opacity-60 hover:opacity-100 hover:bg-ink/5"
-        }`}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
-      >
-        <FileText className="size-3.5 opacity-50 shrink-0" />
-        <span className="truncate flex-1">{page.title || "Namnlös"}</span>
-        <PageMenu page={page} />
-      </Link>
-    </div>
-  );
-}
-
-function Row({ depth, children, onClick }: { depth: number; children: ReactNode; onClick?: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="group w-full flex items-center gap-2 px-2 py-1.5 text-sm font-medium rounded-sm hover:bg-ink/5 transition-colors text-left"
-      style={{ paddingLeft: `${depth * 12 + 8}px` }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function FolderMenu({ folder }: { folder: Folder }) {
-  const qc = useQueryClient();
-  const [renaming, setRenaming] = useState(false);
-  const [name, setName] = useState(folder.name);
-  const [confirmDel, setConfirmDel] = useState(false);
-  const [iconOpen, setIconOpen] = useState(false);
-
-  const renameMut = useMutation({
-    mutationFn: () => renameFolder(folder.id, name.trim() || folder.name),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["library"] }); setRenaming(false); },
-  });
-  const delMut = useMutation({
-    mutationFn: () => deleteFolder(folder.id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["library"] }); toast.success("Mapp borttagen"); },
-  });
-  const iconMut = useMutation({
-    mutationFn: (icon: string | null) => setFolderIcon(folder.id, icon),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["library"] }); setIconOpen(false); },
-  });
-
-  return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <span
-            onClick={(e) => e.stopPropagation()}
-            className="ml-auto opacity-60 md:opacity-0 md:group-hover:opacity-100 p-1 hover:bg-ink/10 rounded"
-          >
-            <MoreHorizontal className="size-3.5" />
-          </span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenuItem onSelect={() => setIconOpen(true)}>
-            <Smile className="size-3.5 mr-2" /> Byt ikon
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setRenaming(true)}>
-            <Pencil className="size-3.5 mr-2" /> Byt namn
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setConfirmDel(true)} className="text-destructive">
-            <Trash2 className="size-3.5 mr-2" /> Ta bort
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <Dialog open={iconOpen} onOpenChange={setIconOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-serif italic text-2xl">Välj ikon</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-8 gap-1 max-h-72 overflow-y-auto">
-            {EMOJI_CHOICES.map((e) => (
-              <button
-                key={e}
-                onClick={() => iconMut.mutate(e)}
-                className={`aspect-square text-xl rounded hover:bg-ink/5 transition-colors ${folder.icon === e ? "bg-accent/20" : ""}`}
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-          <DialogFooter>
-            <button onClick={() => iconMut.mutate(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-ink">
-              Ta bort ikon
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={renaming} onOpenChange={setRenaming}>
-        <DialogContent>
-          <DialogHeader><DialogTitle className="font-serif italic text-2xl">Byt namn på mapp</DialogTitle></DialogHeader>
-          <input
-            autoFocus value={name} onChange={(e) => setName(e.target.value)}
-            className="w-full bg-card border border-border rounded-md px-3 py-2 text-sm outline-none focus:border-accent"
-          />
-          <DialogFooter>
-            <button onClick={() => setRenaming(false)} className="px-3 py-1.5 text-sm">Avbryt</button>
-            <button onClick={() => renameMut.mutate()} className="px-3 py-1.5 text-sm bg-ink text-paper rounded-md">Spara</button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif italic text-2xl">Ta bort den här mappen?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Alla sidor och undermappar tas bort permanent.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Avbryt</AlertDialogCancel>
-            <AlertDialogAction onClick={() => delMut.mutate()}>Ta bort</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
-}
-
-function PageMenu({ page }: { page: Page }) {
+function RowMenu({ page }: { page: Page }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState(false);
@@ -422,13 +275,13 @@ function PageMenu({ page }: { page: Page }) {
         <DropdownMenuTrigger asChild>
           <span
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-            className="opacity-60 md:opacity-0 md:group-hover:opacity-100 p-1 hover:bg-ink/10 rounded"
+            className="opacity-60 md:opacity-0 md:group-hover:opacity-100 p-1 hover:bg-ink/10 rounded shrink-0 cursor-pointer"
           >
             <MoreHorizontal className="size-3.5" />
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenuItem onSelect={() => setRenaming(true)}>
+          <DropdownMenuItem onSelect={() => { setTitle(page.title); setRenaming(true); }}>
             <Pencil className="size-3.5 mr-2" /> Byt namn
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setConfirmDel(true)} className="text-destructive">
@@ -439,9 +292,10 @@ function PageMenu({ page }: { page: Page }) {
 
       <Dialog open={renaming} onOpenChange={setRenaming}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="font-serif italic text-2xl">Byt namn på sida</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-serif italic text-2xl">Byt namn</DialogTitle></DialogHeader>
           <input
             autoFocus value={title} onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") renameMut.mutate(); }}
             className="w-full bg-card border border-border rounded-md px-3 py-2 text-sm outline-none focus:border-accent"
           />
           <DialogFooter>
@@ -455,7 +309,9 @@ function PageMenu({ page }: { page: Page }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif italic text-2xl">Ta bort den här sidan?</AlertDialogTitle>
-            <AlertDialogDescription>Det går inte att ångra.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Alla undersidor inuti tas också bort permanent.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Avbryt</AlertDialogCancel>
@@ -467,124 +323,30 @@ function PageMenu({ page }: { page: Page }) {
   );
 }
 
-function FloatingAdd({ activeFolderId }: { activeFolderId: string | null }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [dialog, setDialog] = useState<null | "folder">(null);
-  const [name, setName] = useState("");
-  const [parentFolder, setParentFolder] = useState<string | null>(activeFolderId);
+// Single action: create a new top-level page and jump straight into it. No choice
+// between page/folder — a page becomes a "folder" the moment something nests in it.
+function FloatingAdd() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data: lib } = useQuery({ queryKey: ["library"], queryFn: fetchLibrary });
 
-  function openFolderDialog() {
-    setName("");
-    setParentFolder(activeFolderId);
-    setDialog("folder");
-    setMenuOpen(false);
-  }
-
-  const allFolders = useMemo(() => lib?.folders ?? [], [lib]);
-
-  // New page: create an empty, untitled page in the current folder and jump
-  // straight into it — no naming dialog, the cursor lands in the heading field.
   const pageMut = useMutation({
-    mutationFn: () => createPage({ title: "", folder_id: activeFolderId }),
+    mutationFn: () => createPage({ parent_id: null }),
     onSuccess: (p) => {
       qc.invalidateQueries({ queryKey: ["library"] });
-      setMenuOpen(false);
       navigate({ to: "/app/page/$pageId", params: { pageId: p.id } });
-    },
-  });
-  const folderMut = useMutation({
-    mutationFn: () => createFolder({ name: name.trim() || "Ny mapp", parent_id: parentFolder }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["library"] });
-      setDialog(null);
     },
   });
 
   return (
-    <>
-      <div className="absolute bottom-6 right-6 sm:bottom-8 sm:right-8 z-20">
-        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-          <PopoverTrigger asChild>
-            <button
-              className="size-14 sm:size-12 rounded-full bg-ink text-paper shadow-2xl flex items-center justify-center hover:scale-105 transition-transform"
-              aria-label="Lägg till"
-            >
-              <Plus className="size-6 sm:size-5" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="end" side="top" className="w-48 p-2">
-            <button
-              onClick={() => pageMut.mutate()}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-ink/5 rounded-md flex items-center justify-between"
-            >
-              Ny sida
-            </button>
-            <button
-              onClick={openFolderDialog}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-ink/5 rounded-md flex items-center justify-between"
-            >
-              Ny mapp
-            </button>
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      <Dialog open={dialog !== null} onOpenChange={(o) => !o && setDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-serif italic text-3xl">Ny mapp</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Namn</label>
-              <input
-                autoFocus value={name} onChange={(e) => setName(e.target.value)}
-                placeholder="Vecka 1"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") folderMut.mutate();
-                }}
-                className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-base sm:text-sm outline-none focus:border-accent"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Plats</label>
-              <select
-                value={parentFolder ?? ""} onChange={(e) => setParentFolder(e.target.value || null)}
-                className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-base sm:text-sm outline-none focus:border-accent"
-              >
-                <option value="">Översta nivån</option>
-                {allFolders.map((f) => (
-                  <option key={f.id} value={f.id}>{folderPath(f, allFolders)}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <DialogFooter>
-            <button onClick={() => setDialog(null)} className="px-3 py-2 text-sm">Avbryt</button>
-            <button
-              onClick={() => folderMut.mutate()}
-              className="px-4 py-2 text-sm bg-ink text-paper rounded-md hover:opacity-90"
-            >
-              Skapa
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <div className="absolute bottom-6 right-6 sm:bottom-8 sm:right-8 z-20">
+      <button
+        onClick={() => pageMut.mutate()}
+        disabled={pageMut.isPending}
+        className="size-14 sm:size-12 rounded-full bg-ink text-paper shadow-2xl flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-60"
+        aria-label="Ny sida"
+      >
+        <Plus className="size-6 sm:size-5" />
+      </button>
+    </div>
   );
-}
-
-function folderPath(folder: Folder, all: Folder[]): string {
-  const parts: string[] = [folder.name];
-  let current = folder;
-  while (current.parent_id) {
-    const parent = all.find((f) => f.id === current.parent_id);
-    if (!parent) break;
-    parts.unshift(parent.name);
-    current = parent;
-  }
-  return parts.join(" / ");
 }

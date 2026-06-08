@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchPage, fetchLibrary, updatePage, type Folder } from "@/lib/library";
+import { fetchPage, fetchLibrary, updatePage, ancestorTitles } from "@/lib/library";
+import { PageIcon } from "@/components/PageIcon";
 
 export function PageEditor({ pageId }: { pageId: string }) {
   const qc = useQueryClient();
@@ -31,6 +32,15 @@ export function PageEditor({ pageId }: { pageId: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
   });
 
+  // Icon saves immediately (and refreshes both the page and the sidebar tree).
+  const iconMut = useMutation({
+    mutationFn: (icon: string | null) => updatePage({ id: pageId, icon }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["library"] });
+      qc.invalidateQueries({ queryKey: ["page", pageId] });
+    },
+  });
+
   // debounce auto-save
   const saveTimer = useRef<number | null>(null);
   function scheduleSave(patch: { title?: string; body?: string }) {
@@ -38,7 +48,10 @@ export function PageEditor({ pageId }: { pageId: string }) {
     saveTimer.current = window.setTimeout(() => saveMut.mutate(patch), 600);
   }
 
-  const breadcrumb = useMemo(() => buildBreadcrumb(page?.folder_id ?? null, lib?.folders ?? []), [page, lib]);
+  const breadcrumb = useMemo(
+    () => ancestorTitles(lib?.pages ?? [], pageId).join(" / "),
+    [lib, pageId],
+  );
 
   if (isLoading || !page) {
     return <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Laddar…</div>;
@@ -57,6 +70,9 @@ export function PageEditor({ pageId }: { pageId: string }) {
 
       <div className="flex-1 overflow-y-auto selection:bg-accent/20">
         <article className="max-w-2xl mx-auto py-10 sm:py-20 px-5 sm:px-8">
+          <div className="mb-4">
+            <PageIcon icon={page.icon} onChange={(ic) => iconMut.mutate(ic)} size="lg" />
+          </div>
           <input
             ref={titleRef}
             type="text"
@@ -79,19 +95,6 @@ export function PageEditor({ pageId }: { pageId: string }) {
       </div>
     </>
   );
-}
-
-function buildBreadcrumb(folderId: string | null, folders: Folder[]): string {
-  if (!folderId) return "";
-  const parts: string[] = [];
-  let id: string | null = folderId;
-  while (id) {
-    const f: Folder | undefined = folders.find((x) => x.id === id);
-    if (!f) break;
-    parts.unshift(f.name);
-    id = f.parent_id;
-  }
-  return parts.join(" / ");
 }
 
 /* ---------- Markdown editor: plain textarea + live rendered preview side by side?
