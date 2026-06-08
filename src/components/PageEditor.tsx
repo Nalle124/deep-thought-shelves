@@ -13,12 +13,16 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const initRef = useRef<string | null>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (page && initRef.current !== page.id) {
       setTitle(page.title);
       setBody(page.body);
       initRef.current = page.id;
+      // A freshly created page has a blank title — drop the cursor straight into
+      // the heading field so you can start typing immediately.
+      if (!page.title) requestAnimationFrame(() => titleRef.current?.focus());
     }
   }, [page]);
 
@@ -37,26 +41,27 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const breadcrumb = useMemo(() => buildBreadcrumb(page?.folder_id ?? null, lib?.folders ?? []), [page, lib]);
 
   if (isLoading || !page) {
-    return <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+    return <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Laddar…</div>;
   }
 
   return (
     <>
       <header className="h-12 sm:h-14 border-b border-border flex items-center justify-between px-4 sm:px-8 shrink-0 gap-3">
         <div className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.2em] opacity-40 truncate">
-          Library {breadcrumb && `/ ${breadcrumb} `}/ {page.title || "Untitled"}
+          Arkiv {breadcrumb && `/ ${breadcrumb} `}/ {page.title || "Namnlös"}
         </div>
         <div className="text-[10px] uppercase tracking-widest opacity-30 shrink-0">
-          {saveMut.isPending ? "Saving…" : "Saved"}
+          {saveMut.isPending ? "Sparar…" : "Sparat"}
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto selection:bg-accent/20">
         <article className="max-w-2xl mx-auto py-10 sm:py-20 px-5 sm:px-8">
           <input
+            ref={titleRef}
             type="text"
             value={title}
-            placeholder="Untitled"
+            placeholder="Namnlös"
             onChange={(e) => {
               setTitle(e.target.value);
               scheduleSave({ title: e.target.value });
@@ -114,7 +119,7 @@ function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: stri
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => setEditing(false)}
-        placeholder={"Start writing…\n\nTry: # heading, - bullet, [ ] todo, --- divider"}
+        placeholder={"Börja skriva…\n\nProva: # rubrik, - punkt, [ ] att göra, --- avdelare"}
         className="w-full bg-transparent outline-none resize-none text-lg leading-relaxed text-ink/85 placeholder:opacity-30 font-sans min-h-[60vh]"
       />
     );

@@ -7,6 +7,31 @@ export const Route = createFileRoute("/_authenticated/app/")({
   component: Overview,
 });
 
+// A fresh greeting each day — picked deterministically from the date so it stays
+// stable through the day but changes when you open the archive on a new day.
+const GREETINGS = [
+  "Välkommen tillbaka.",
+  "En ny dag att minnas.",
+  "Vad bär du med dig idag?",
+  "Låt tankarna landa.",
+  "En tom sida väntar.",
+  "Var god dröj vid tanken.",
+  "Skriv ner det innan det glöms.",
+  "Tystnaden är din.",
+  "Vad vill du bevara idag?",
+  "Börja där du står.",
+  "Ny dag, nya rader.",
+  "Här vilar dina ord.",
+  "Lugnt och stilla.",
+  "Något att lägga till arkivet?",
+  "Dagen är fortfarande oskriven.",
+];
+
+function greetingForToday(): string {
+  const dayNumber = Math.floor(Date.now() / 86_400_000);
+  return GREETINGS[dayNumber % GREETINGS.length];
+}
+
 function Overview() {
   const { data: lib } = useQuery({ queryKey: ["library"], queryFn: fetchLibrary });
   const folders = lib?.folders ?? [];
@@ -18,22 +43,22 @@ function Overview() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 sm:px-10 py-12 sm:py-20">
-        <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Library</p>
-        <h1 className="font-serif italic text-4xl sm:text-6xl tracking-tight">Welcome back.</h1>
+        <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Arkiv</p>
+        <h1 className="font-serif italic text-4xl sm:text-6xl tracking-tight">{greetingForToday()}</h1>
         <p className="mt-4 text-muted-foreground text-sm sm:text-base max-w-md">
-          A quiet place for your thinking. {pages.length} note{pages.length === 1 ? "" : "s"} across {folders.length} folder{folders.length === 1 ? "" : "s"}.
+          En stilla plats för dina tankar. {pages.length} anteckning{pages.length === 1 ? "" : "ar"} i {folders.length} mapp{folders.length === 1 ? "" : "ar"}.
         </p>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-10">
-          <Stat label="Notes" value={pages.length} icon={<FileText className="size-4 opacity-40" />} />
-          <Stat label="Folders" value={folders.length} icon={<FolderIcon className="size-4 opacity-40" />} />
+          <Stat label="Anteckningar" value={pages.length} icon={<FileText className="size-4 opacity-40" />} />
+          <Stat label="Mappar" value={folders.length} icon={<FolderIcon className="size-4 opacity-40" />} />
         </div>
 
         <section className="mt-12">
-          <h2 className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Recent</h2>
+          <h2 className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Senaste</h2>
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">
-              Nothing yet. Press <span className="text-ink font-medium">+</span> to begin.
+              Inget än. Tryck <span className="text-ink font-medium">+</span> för att börja.
             </p>
           ) : (
             <ul className="divide-y divide-border border-t border-b border-border">
@@ -47,7 +72,7 @@ function Overview() {
                       className="flex items-center justify-between gap-4 py-3 sm:py-4 hover:opacity-70 transition-opacity"
                     >
                       <div className="min-w-0">
-                        <p className="font-serif italic text-lg sm:text-xl truncate">{p.title || "Untitled"}</p>
+                        <p className="font-serif italic text-lg sm:text-xl truncate">{p.title || "Namnlös"}</p>
                         {f && (
                           <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mt-1 truncate">
                             {f.icon ? `${f.icon}  ` : ""}{f.name}
@@ -83,9 +108,9 @@ function Stat({ label, value, icon }: { label: string; value: number; icon: Reac
 
 function timeAgo(iso: string): string {
   const d = (Date.now() - +new Date(iso)) / 1000;
-  if (d < 60) return "just now";
-  if (d < 3600) return `${Math.floor(d / 60)}m`;
-  if (d < 86400) return `${Math.floor(d / 3600)}h`;
-  if (d < 86400 * 7) return `${Math.floor(d / 86400)}d`;
-  return new Date(iso).toLocaleDateString();
+  if (d < 60) return "nyss";
+  if (d < 3600) return `${Math.floor(d / 60)} min`;
+  if (d < 86400) return `${Math.floor(d / 3600)} tim`;
+  if (d < 86400 * 7) return `${Math.floor(d / 86400)} d`;
+  return new Date(iso).toLocaleDateString("sv-SE");
 }

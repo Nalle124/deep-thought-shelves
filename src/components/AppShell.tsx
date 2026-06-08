@@ -68,7 +68,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button
             onClick={() => setMobileOpen(true)}
             className="p-2 -ml-2 hover:bg-ink/5 rounded-md"
-            aria-label="Open menu"
+            aria-label="Öppna meny"
           >
             <Menu className="size-5" />
           </button>
@@ -124,11 +124,11 @@ function SidebarBody({ folders, pages, activePageId, onNavigate }: {
   return (
     <aside className="w-72 max-w-full h-full shrink-0 md:border-r border-border flex flex-col bg-paper">
       <div className="p-5 sm:p-6 flex items-center justify-between">
-        <Link to="/app" onClick={onNavigate} className="font-serif italic text-2xl tracking-tight">Anthology</Link>
+        <Link to="/app" onClick={onNavigate} className="font-serif italic text-2xl tracking-tight">Arkiv</Link>
         <button
           onClick={toggle}
           className="p-1.5 hover:bg-ink/5 rounded-md transition-colors"
-          aria-label="Toggle theme"
+          aria-label="Byt tema"
         >
           {theme === "light" ? <Moon className="size-4 opacity-60" /> : <Sun className="size-4 opacity-60" />}
         </button>
@@ -147,7 +147,7 @@ function SidebarBody({ folders, pages, activePageId, onNavigate }: {
         ))}
         {rootFolders.length === 0 && rootPages.length === 0 && (
           <p className="px-3 py-8 text-xs text-muted-foreground italic">
-            Empty library. Press <span className="font-medium">+</span> to begin.
+            Tomt arkiv. Tryck <span className="font-medium">+</span> för att börja.
           </p>
         )}
       </nav>
@@ -155,10 +155,10 @@ function SidebarBody({ folders, pages, activePageId, onNavigate }: {
       <div className="p-4 border-t border-border flex items-center gap-3">
         <div className="size-8 rounded-full bg-accent/20 border border-accent/30" />
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium truncate">Your library</p>
-          <p className="text-[10px] opacity-40 uppercase tracking-wider">Private</p>
+          <p className="text-xs font-medium truncate">Ditt arkiv</p>
+          <p className="text-[10px] opacity-40 uppercase tracking-wider">Privat</p>
         </div>
-        <button onClick={signOut} className="p-1.5 hover:bg-ink/5 rounded-md" aria-label="Sign out">
+        <button onClick={signOut} className="p-1.5 hover:bg-ink/5 rounded-md" aria-label="Logga ut">
           <LogOut className="size-3.5 opacity-60" />
         </button>
       </div>
@@ -211,7 +211,7 @@ function FolderNode({ folder, folders, pages, depth, activePageId, onNavigate }:
     if (data.kind === "folder") {
       if (data.id === folder.id) return;
       if (isDescendant(data.id, folder.id)) {
-        toast.error("Cannot move folder into itself");
+        toast.error("Kan inte flytta en mapp in i sig själv");
         return;
       }
       moveFolderMut.mutate({ id: data.id, parent: folder.id });
@@ -266,13 +266,16 @@ function PageNode({ page, depth, active, onNavigate }: { page: Page; depth: numb
         to="/app/page/$pageId"
         params={{ pageId: page.id }}
         onClick={onNavigate}
+        // Let the wrapper div own the drag (anchors are natively draggable as a
+        // URL, which would otherwise hijack the move payload).
+        draggable={false}
         className={`group flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm transition-colors ${
           active ? "bg-accent/15 text-accent" : "opacity-60 hover:opacity-100 hover:bg-ink/5"
         }`}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
         <FileText className="size-3.5 opacity-50 shrink-0" />
-        <span className="truncate flex-1">{page.title || "Untitled"}</span>
+        <span className="truncate flex-1">{page.title || "Namnlös"}</span>
         <PageMenu page={page} />
       </Link>
     </div>
@@ -304,7 +307,7 @@ function FolderMenu({ folder }: { folder: Folder }) {
   });
   const delMut = useMutation({
     mutationFn: () => deleteFolder(folder.id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["library"] }); toast.success("Folder deleted"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["library"] }); toast.success("Mapp borttagen"); },
   });
   const iconMut = useMutation({
     mutationFn: (icon: string | null) => setFolderIcon(folder.id, icon),
@@ -324,20 +327,20 @@ function FolderMenu({ folder }: { folder: Folder }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
           <DropdownMenuItem onSelect={() => setIconOpen(true)}>
-            <Smile className="size-3.5 mr-2" /> Change icon
+            <Smile className="size-3.5 mr-2" /> Byt ikon
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setRenaming(true)}>
-            <Pencil className="size-3.5 mr-2" /> Rename
+            <Pencil className="size-3.5 mr-2" /> Byt namn
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setConfirmDel(true)} className="text-destructive">
-            <Trash2 className="size-3.5 mr-2" /> Delete
+            <Trash2 className="size-3.5 mr-2" /> Ta bort
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
       <Dialog open={iconOpen} onOpenChange={setIconOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-serif italic text-2xl">Choose icon</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-serif italic text-2xl">Välj ikon</DialogTitle></DialogHeader>
           <div className="grid grid-cols-8 gap-1 max-h-72 overflow-y-auto">
             {EMOJI_CHOICES.map((e) => (
               <button
@@ -351,7 +354,7 @@ function FolderMenu({ folder }: { folder: Folder }) {
           </div>
           <DialogFooter>
             <button onClick={() => iconMut.mutate(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-ink">
-              Remove icon
+              Ta bort ikon
             </button>
           </DialogFooter>
         </DialogContent>
@@ -359,14 +362,14 @@ function FolderMenu({ folder }: { folder: Folder }) {
 
       <Dialog open={renaming} onOpenChange={setRenaming}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="font-serif italic text-2xl">Rename folder</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-serif italic text-2xl">Byt namn på mapp</DialogTitle></DialogHeader>
           <input
             autoFocus value={name} onChange={(e) => setName(e.target.value)}
             className="w-full bg-card border border-border rounded-md px-3 py-2 text-sm outline-none focus:border-accent"
           />
           <DialogFooter>
-            <button onClick={() => setRenaming(false)} className="px-3 py-1.5 text-sm">Cancel</button>
-            <button onClick={() => renameMut.mutate()} className="px-3 py-1.5 text-sm bg-ink text-paper rounded-md">Save</button>
+            <button onClick={() => setRenaming(false)} className="px-3 py-1.5 text-sm">Avbryt</button>
+            <button onClick={() => renameMut.mutate()} className="px-3 py-1.5 text-sm bg-ink text-paper rounded-md">Spara</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -374,14 +377,14 @@ function FolderMenu({ folder }: { folder: Folder }) {
       <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif italic text-2xl">Delete this folder?</AlertDialogTitle>
+            <AlertDialogTitle className="font-serif italic text-2xl">Ta bort den här mappen?</AlertDialogTitle>
             <AlertDialogDescription>
-              All pages and subfolders inside will be permanently removed.
+              Alla sidor och undermappar tas bort permanent.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => delMut.mutate()}>Delete</AlertDialogAction>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={() => delMut.mutate()}>Ta bort</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -397,7 +400,7 @@ function PageMenu({ page }: { page: Page }) {
   const [confirmDel, setConfirmDel] = useState(false);
 
   const renameMut = useMutation({
-    mutationFn: () => renamePage(page.id, title.trim() || "Untitled"),
+    mutationFn: () => renamePage(page.id, title.trim() || "Namnlös"),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["library"] });
       qc.invalidateQueries({ queryKey: ["page", page.id] });
@@ -408,7 +411,7 @@ function PageMenu({ page }: { page: Page }) {
     mutationFn: () => deletePage(page.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["library"] });
-      toast.success("Page deleted");
+      toast.success("Sida borttagen");
       navigate({ to: "/app" });
     },
   });
@@ -426,24 +429,24 @@ function PageMenu({ page }: { page: Page }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
           <DropdownMenuItem onSelect={() => setRenaming(true)}>
-            <Pencil className="size-3.5 mr-2" /> Rename
+            <Pencil className="size-3.5 mr-2" /> Byt namn
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setConfirmDel(true)} className="text-destructive">
-            <Trash2 className="size-3.5 mr-2" /> Delete
+            <Trash2 className="size-3.5 mr-2" /> Ta bort
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
       <Dialog open={renaming} onOpenChange={setRenaming}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="font-serif italic text-2xl">Rename page</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-serif italic text-2xl">Byt namn på sida</DialogTitle></DialogHeader>
           <input
             autoFocus value={title} onChange={(e) => setTitle(e.target.value)}
             className="w-full bg-card border border-border rounded-md px-3 py-2 text-sm outline-none focus:border-accent"
           />
           <DialogFooter>
-            <button onClick={() => setRenaming(false)} className="px-3 py-1.5 text-sm">Cancel</button>
-            <button onClick={() => renameMut.mutate()} className="px-3 py-1.5 text-sm bg-ink text-paper rounded-md">Save</button>
+            <button onClick={() => setRenaming(false)} className="px-3 py-1.5 text-sm">Avbryt</button>
+            <button onClick={() => renameMut.mutate()} className="px-3 py-1.5 text-sm bg-ink text-paper rounded-md">Spara</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -451,12 +454,12 @@ function PageMenu({ page }: { page: Page }) {
       <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif italic text-2xl">Delete this page?</AlertDialogTitle>
-            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle className="font-serif italic text-2xl">Ta bort den här sidan?</AlertDialogTitle>
+            <AlertDialogDescription>Det går inte att ångra.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => delMut.mutate()}>Delete</AlertDialogAction>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={() => delMut.mutate()}>Ta bort</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -466,32 +469,34 @@ function PageMenu({ page }: { page: Page }) {
 
 function FloatingAdd({ activeFolderId }: { activeFolderId: string | null }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dialog, setDialog] = useState<null | "page" | "folder">(null);
+  const [dialog, setDialog] = useState<null | "folder">(null);
   const [name, setName] = useState("");
   const [parentFolder, setParentFolder] = useState<string | null>(activeFolderId);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { data: lib } = useQuery({ queryKey: ["library"], queryFn: fetchLibrary });
 
-  function openDialog(kind: "page" | "folder") {
+  function openFolderDialog() {
     setName("");
     setParentFolder(activeFolderId);
-    setDialog(kind);
+    setDialog("folder");
     setMenuOpen(false);
   }
 
   const allFolders = useMemo(() => lib?.folders ?? [], [lib]);
 
+  // New page: create an empty, untitled page in the current folder and jump
+  // straight into it — no naming dialog, the cursor lands in the heading field.
   const pageMut = useMutation({
-    mutationFn: () => createPage({ title: name.trim() || "Untitled", folder_id: parentFolder }),
+    mutationFn: () => createPage({ title: "", folder_id: activeFolderId }),
     onSuccess: (p) => {
       qc.invalidateQueries({ queryKey: ["library"] });
-      setDialog(null);
+      setMenuOpen(false);
       navigate({ to: "/app/page/$pageId", params: { pageId: p.id } });
     },
   });
   const folderMut = useMutation({
-    mutationFn: () => createFolder({ name: name.trim() || "New folder", parent_id: parentFolder }),
+    mutationFn: () => createFolder({ name: name.trim() || "Ny mapp", parent_id: parentFolder }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["library"] });
       setDialog(null);
@@ -505,23 +510,23 @@ function FloatingAdd({ activeFolderId }: { activeFolderId: string | null }) {
           <PopoverTrigger asChild>
             <button
               className="size-14 sm:size-12 rounded-full bg-ink text-paper shadow-2xl flex items-center justify-center hover:scale-105 transition-transform"
-              aria-label="Add new"
+              aria-label="Lägg till"
             >
               <Plus className="size-6 sm:size-5" />
             </button>
           </PopoverTrigger>
           <PopoverContent align="end" side="top" className="w-48 p-2">
             <button
-              onClick={() => openDialog("page")}
+              onClick={() => pageMut.mutate()}
               className="w-full text-left px-3 py-2 text-sm hover:bg-ink/5 rounded-md flex items-center justify-between"
             >
-              New page
+              Ny sida
             </button>
             <button
-              onClick={() => openDialog("folder")}
+              onClick={openFolderDialog}
               className="w-full text-left px-3 py-2 text-sm hover:bg-ink/5 rounded-md flex items-center justify-between"
             >
-              New folder
+              Ny mapp
             </button>
           </PopoverContent>
         </Popover>
@@ -530,31 +535,27 @@ function FloatingAdd({ activeFolderId }: { activeFolderId: string | null }) {
       <Dialog open={dialog !== null} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-serif italic text-3xl">
-              {dialog === "page" ? "New page" : "New folder"}
-            </DialogTitle>
+            <DialogTitle className="font-serif italic text-3xl">Ny mapp</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="block text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Name</label>
+              <label className="block text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Namn</label>
               <input
                 autoFocus value={name} onChange={(e) => setName(e.target.value)}
-                placeholder={dialog === "page" ? "June 8" : "Week 1"}
+                placeholder="Vecka 1"
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    dialog === "page" ? pageMut.mutate() : folderMut.mutate();
-                  }
+                  if (e.key === "Enter") folderMut.mutate();
                 }}
                 className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-base sm:text-sm outline-none focus:border-accent"
               />
             </div>
             <div>
-              <label className="block text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Location</label>
+              <label className="block text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Plats</label>
               <select
                 value={parentFolder ?? ""} onChange={(e) => setParentFolder(e.target.value || null)}
                 className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-base sm:text-sm outline-none focus:border-accent"
               >
-                <option value="">Top level</option>
+                <option value="">Översta nivån</option>
                 {allFolders.map((f) => (
                   <option key={f.id} value={f.id}>{folderPath(f, allFolders)}</option>
                 ))}
@@ -562,12 +563,12 @@ function FloatingAdd({ activeFolderId }: { activeFolderId: string | null }) {
             </div>
           </div>
           <DialogFooter>
-            <button onClick={() => setDialog(null)} className="px-3 py-2 text-sm">Cancel</button>
+            <button onClick={() => setDialog(null)} className="px-3 py-2 text-sm">Avbryt</button>
             <button
-              onClick={() => dialog === "page" ? pageMut.mutate() : folderMut.mutate()}
+              onClick={() => folderMut.mutate()}
               className="px-4 py-2 text-sm bg-ink text-paper rounded-md hover:opacity-90"
             >
-              Create
+              Skapa
             </button>
           </DialogFooter>
         </DialogContent>

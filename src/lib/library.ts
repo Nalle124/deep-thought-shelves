@@ -60,7 +60,9 @@ export async function createPage(input: { title: string; folder_id: string | nul
   if (!u.user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("pages")
-    .insert({ title: input.title || "Untitled", folder_id: input.folder_id, user_id: u.user.id, body: "" })
+    // Allow an empty title so a freshly created page opens with a blank heading
+    // field for the user to type into.
+    .insert({ title: input.title ?? "", folder_id: input.folder_id, user_id: u.user.id, body: "" })
     .select()
     .single();
   if (error) throw error;
