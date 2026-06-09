@@ -144,7 +144,7 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
   }
 
   return (
-    <div className="min-h-[28vh] cursor-text" onClick={handleWrapClick}>
+    <div className="min-h-[18vh] cursor-text" onClick={handleWrapClick}>
       <BlockNoteView
         editor={editor}
         theme={theme === "dark" ? "dark" : "light"}

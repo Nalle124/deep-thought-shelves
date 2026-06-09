@@ -13,8 +13,9 @@ import {
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
+import { fetchSearchIndex, searchDocs, exportArchive } from "@/lib/search";
 import {
-  ChevronRight, FileText, Sparkles, Plus, X, Check, SlidersHorizontal,
+  ChevronRight, FileText, Sparkles, Plus, X, Check, SlidersHorizontal, Search, Download,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app/")({
@@ -83,6 +84,7 @@ function Overview() {
           <HomeMenu ambient={ambient} onPickAmbient={pickAmbient} sections={sections} onToggle={toggleSection} />
         </div>
 
+        <SearchBox />
         <RecentCards recent={recent} pages={pages} />
 
         {sections.week && <WeeklySchedule />}
@@ -124,8 +126,56 @@ function HomeMenu({
           <ToggleRow label="Veckoschema" on={sections.week} onClick={() => onToggle("week")} />
           <ToggleRow label="Veckans mål" on={sections.goals} onClick={() => onToggle("goals")} />
         </div>
+        <div className="border-t border-border pt-3">
+          <button
+            onClick={() => exportArchive().catch((e) => console.error("Export failed", e))}
+            className="w-full flex items-center gap-2 py-1.5 text-sm hover:text-ink transition"
+          >
+            <Download className="size-3.5" /> Exportera allt (backup)
+          </button>
+        </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function SearchBox() {
+  const { data: index } = useQuery({ queryKey: ["searchIndex"], queryFn: fetchSearchIndex, staleTime: 30_000 });
+  const [q, setQ] = useState("");
+  const results = useMemo(() => searchDocs(index ?? [], q), [index, q]);
+  return (
+    <div className="mt-8">
+      <div className="relative">
+        <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Sök i arkivet…"
+          className="w-full bg-card/70 backdrop-blur-sm border border-border rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:border-accent placeholder:opacity-50"
+        />
+      </div>
+      {q.trim() && (
+        <div className="mt-2 rounded-lg border border-border bg-card/85 backdrop-blur-sm divide-y divide-border overflow-hidden">
+          {results.length === 0 ? (
+            <p className="px-3 py-3 text-sm text-muted-foreground">Inga träffar.</p>
+          ) : (
+            results.map((d) => (
+              <Link
+                key={d.id}
+                to="/app/page/$pageId"
+                params={{ pageId: d.id }}
+                className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-ink/5 transition-colors"
+              >
+                <span className="shrink-0 text-base leading-none">
+                  {d.icon ?? <FileText className="size-4 opacity-40" />}
+                </span>
+                <span className="text-sm truncate">{d.title || "Namnlös"}</span>
+              </Link>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

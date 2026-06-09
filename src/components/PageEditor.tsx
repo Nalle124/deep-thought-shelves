@@ -160,7 +160,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
         {page.cover && <CoverBanner cover={page.cover} onChange={(c) => coverMut.mutate(c)} />}
         <article
           data-pagestyle={page.style ?? "classic"}
-          className={`max-w-2xl mx-auto px-5 sm:px-8 pb-[45vh] ${page.cover ? "pt-6" : "pt-10 sm:pt-20"}`}
+          className={`max-w-2xl mx-auto px-5 sm:px-8 pb-24 ${page.cover ? "pt-6" : "pt-10 sm:pt-20"}`}
         >
           <div className="mb-4 flex items-center gap-2 flex-wrap">
             <PageIcon icon={page.icon} onChange={(ic) => iconMut.mutate(ic)} size="lg" />
