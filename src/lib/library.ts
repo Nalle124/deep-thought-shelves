@@ -155,6 +155,36 @@ export async function movePage(id: string, parent_id: string | null) {
   if (error) throw error;
 }
 
+// Reorder a page among its siblings: place it before/after the target (and move
+// it to the target's level). Renumbers the whole sibling group's positions.
+export async function reorderPage(
+  draggedId: string,
+  targetId: string,
+  place: "before" | "after",
+  pages: Page[],
+) {
+  const target = pages.find((p) => p.id === targetId);
+  if (!target || draggedId === targetId) return;
+  const parentId = target.parent_id;
+  const sibs = pages
+    .filter((p) => p.parent_id === parentId && p.id !== draggedId)
+    .sort((a, b) => a.position - b.position || +new Date(a.created_at) - +new Date(b.created_at));
+  const ti = sibs.findIndex((p) => p.id === targetId);
+  const insertAt = place === "before" ? ti : ti + 1;
+  const order = [
+    ...sibs.slice(0, insertAt).map((p) => p.id),
+    draggedId,
+    ...sibs.slice(insertAt).map((p) => p.id),
+  ];
+  await Promise.all(
+    order.map((id, i) => {
+      const patch: { position: number; parent_id?: string | null } = { position: i };
+      if (id === draggedId) patch.parent_id = parentId;
+      return supabase.from("pages").update(patch).eq("id", id);
+    }),
+  );
+}
+
 // --- tree helpers (pure, operate on the flat list) ---
 
 export function childrenOf(pages: Page[], parentId: string | null): Page[] {

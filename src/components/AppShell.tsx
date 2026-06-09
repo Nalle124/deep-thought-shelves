@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchLibrary, fetchPage, createPage, deletePage, trashPage, restorePage, fetchTrash,
-  renamePage, movePage, setPageIcon, childrenOf, hasChildren, isSelfOrDescendant, type Page,
+  renamePage, movePage, reorderPage, setPageIcon, childrenOf, hasChildren, isSelfOrDescendant, type Page,
 } from "@/lib/library";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/lib/theme";
@@ -251,7 +251,7 @@ function PageNode({ page, pages, depth, activePageId, onNavigate }: {
   page: Page; pages: Page[]; depth: number; activePageId?: string; onNavigate: () => void;
 }) {
   const [open, setOpen] = useState(true);
-  const [hover, setHover] = useState(false);
+  const [dropZone, setDropZone] = useState<null | "before" | "after" | "inside">(null);
   const qc = useQueryClient();
   const navigate = useNavigate();
 
@@ -263,6 +263,11 @@ function PageNode({ page, pages, depth, activePageId, onNavigate }: {
 
   const moveMut = useMutation({
     mutationFn: ({ id, parent }: { id: string; parent: string | null }) => movePage(id, parent),
+    onSuccess: invalidate,
+  });
+  const reorderMut = useMutation({
+    mutationFn: (v: { draggedId: string; place: "before" | "after" }) =>
+      reorderPage(v.draggedId, page.id, v.place, pages),
     onSuccess: invalidate,
   });
   const iconMut = useMutation({
@@ -279,17 +284,32 @@ function PageNode({ page, pages, depth, activePageId, onNavigate }: {
     },
   });
 
+  function onDragOver(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const h = rect.height || 1;
+    // Top/bottom edges = reorder (before/after); middle = nest inside.
+    setDropZone(y < h * 0.28 ? "before" : y > h * 0.72 ? "after" : "inside");
+  }
+
   function onDrop(e: DragEvent) {
     e.preventDefault();
     e.stopPropagation();
-    setHover(false);
+    const zone = dropZone;
+    setDropZone(null);
     const data = parseDrag(e);
     if (!data || data.id === page.id) return;
-    if (isSelfOrDescendant(pages, data.id, page.id)) {
-      return; // can't move a page into itself / its own subtree
+    if (zone === "inside") {
+      if (isSelfOrDescendant(pages, data.id, page.id)) return;
+      moveMut.mutate({ id: data.id, parent: page.id });
+      setOpen(true);
+    } else if (zone) {
+      // Reorder among siblings (drops it at this page's level).
+      if (page.parent_id && isSelfOrDescendant(pages, data.id, page.parent_id)) return;
+      reorderMut.mutate({ draggedId: data.id, place: zone });
     }
-    moveMut.mutate({ id: data.id, parent: page.id });
-    setOpen(true);
   }
 
   const stop = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); };
@@ -299,14 +319,16 @@ function PageNode({ page, pages, depth, activePageId, onNavigate }: {
       <div
         draggable
         onDragStart={(e) => { e.stopPropagation(); setDrag(e, { id: page.id }); }}
-        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setHover(true); }}
-        onDragLeave={() => setHover(false)}
+        onDragOver={onDragOver}
+        onDragLeave={() => setDropZone(null)}
         onDrop={onDrop}
-        className={`group flex items-center gap-1 pr-1 rounded-sm transition-colors ${
-          hover ? "bg-accent/15" : active ? "bg-accent/15" : "hover:bg-ink/5"
+        className={`group relative flex items-center gap-1 pr-1 rounded-sm transition-colors ${
+          dropZone === "inside" ? "bg-accent/15" : active ? "bg-accent/15" : "hover:bg-ink/5"
         }`}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
       >
+        {dropZone === "before" && <div className="absolute -top-px left-1 right-1 h-0.5 rounded bg-accent z-10" />}
+        {dropZone === "after" && <div className="absolute -bottom-px left-1 right-1 h-0.5 rounded bg-accent z-10" />}
         <button
           onClick={() => setOpen(!open)}
           className={`size-5 flex items-center justify-center shrink-0 rounded hover:bg-ink/10 ${isParent ? "" : "invisible"}`}
