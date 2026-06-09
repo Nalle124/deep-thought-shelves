@@ -9,7 +9,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FileText, MoreHorizontal, Check, Type } from "lucide-react";
+import { FileText, MoreHorizontal, Check, Type, ImagePlus, Loader2 } from "lucide-react";
 
 const PAGE_STYLES: { id: string; label: string; hint: string }[] = [
   { id: "classic", label: "Klassisk", hint: "Serif, kursiv rubrik" },
@@ -32,6 +32,33 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const initRef = useRef<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<BlockEditorHandle>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImg, setUploadingImg] = useState(false);
+
+  async function handlePickImage(file: File) {
+    setUploadingImg(true);
+    try {
+      await bodyRef.current?.insertImage(file);
+    } catch (e) {
+      console.error("Image upload failed", e);
+    } finally {
+      setUploadingImg(false);
+    }
+  }
+
+  // Tapping the empty area (incl. the bottom padding) focuses the editor so the
+  // keyboard pops up right away — no slow custom handling.
+  function handleEditorAreaPointer(e: React.MouseEvent) {
+    const t = e.target as HTMLElement;
+    if (
+      t.closest(".bn-block-content") || t.closest("input") || t.closest("textarea") ||
+      t.closest("button") || t.closest("a") || t.closest('[contenteditable="true"]') ||
+      t.closest('[role="menu"]') || t.closest('[role="toolbar"]')
+    ) return;
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return; // don't steal a selection
+    bodyRef.current?.focus();
+  }
 
   useEffect(() => {
     if (page && initRef.current !== page.id) {
@@ -118,10 +145,26 @@ export function PageEditor({ pageId }: { pageId: string }) {
           <span className="opacity-25">/</span>
           <span className="opacity-60 truncate">{page.title || "Namnlös"}</span>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="text-[10px] uppercase tracking-widest opacity-30">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <span className="hidden sm:inline text-[10px] uppercase tracking-widest opacity-30">
             {saveMut.isPending ? "Sparar…" : "Sparat"}
           </span>
+          <button
+            onClick={() => imageInputRef.current?.click()}
+            disabled={uploadingImg}
+            className="p-1.5 hover:bg-ink/5 rounded-md opacity-60 hover:opacity-100 transition disabled:opacity-40"
+            aria-label="Lägg till bild"
+            title="Lägg till bild"
+          >
+            {uploadingImg ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
+          </button>
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePickImage(f); e.target.value = ""; }}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-1.5 -mr-1 hover:bg-ink/5 rounded-md opacity-60 hover:opacity-100 transition" aria-label="Sidinställningar">
@@ -156,7 +199,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto selection:bg-accent/20">
+      <div className="flex-1 overflow-y-auto selection:bg-accent/20 cursor-text" onClick={handleEditorAreaPointer}>
         {page.cover && <CoverBanner cover={page.cover} onChange={(c) => coverMut.mutate(c)} />}
         <article
           data-pagestyle={page.style ?? "classic"}

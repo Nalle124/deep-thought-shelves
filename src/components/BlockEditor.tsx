@@ -23,7 +23,10 @@ import { youtubeId } from "@/lib/youtube";
 import { StatementBlock, STATEMENT_VARIANTS, type StatementVariant } from "@/components/StatementBlock";
 import { YouTubeBlock } from "@/components/YouTubeBlock";
 
-export type BlockEditorHandle = { focus: () => void };
+export type BlockEditorHandle = {
+  focus: () => void;
+  insertImage: (file: File) => Promise<void>;
+};
 
 // Schema = built-in blocks + custom blocks (art statement, YouTube embed) +
 // multi-column support (drag blocks side by side to build rows / collages).
@@ -96,24 +99,33 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
   });
 
   useImperativeHandle(ref, () => ({
-    focus: () => editor.focus(),
+    // Crisp focus: place the cursor at the end and focus immediately (within the
+    // tap gesture) so the mobile keyboard pops up right away. Only the cheap work
+    // happens before focus().
+    focus: () => {
+      try {
+        const doc = editor.document;
+        const last = doc[doc.length - 1];
+        const isVoid = !!last && ["divider", "youtube", "image"].includes(last.type as string);
+        if (last && isVoid) {
+          const ins = editor.insertBlocks([{ type: "paragraph" }], last.id, "after");
+          editor.setTextCursorPosition(ins[0].id, "end");
+        } else if (last) {
+          editor.setTextCursorPosition(last.id, "end");
+        }
+      } catch { /* ignore */ }
+      editor.focus();
+    },
+    insertImage: async (file: File) => {
+      const url = await uploadMedia(file);
+      let target: any = null;
+      try { target = editor.getTextCursorPosition().block; } catch { target = null; }
+      const doc = editor.document;
+      target = target ?? doc[doc.length - 1];
+      editor.insertBlocks([{ type: "image", props: { url } } as any], target.id, "after");
+    },
   }), [editor]);
 
-  // Click anywhere in the empty area below the content → start writing there
-  // (append a paragraph if the last block isn't already an empty one).
-  function focusEnd() {
-    const doc = editor.document;
-    const last = doc[doc.length - 1];
-    const lastEmpty =
-      last?.type === "paragraph" &&
-      (!last.content || (Array.isArray(last.content) && last.content.length === 0));
-    if (last && !lastEmpty) {
-      editor.insertBlocks([{ type: "paragraph" }], last, "after");
-    }
-    const fresh = editor.document;
-    editor.setTextCursorPosition(fresh[fresh.length - 1], "end");
-    editor.focus();
-  }
   function afterChange() {
     // Text-cursor block (throws when a void block like a divider is node-selected).
     let textBlock: any = null;
@@ -175,22 +187,6 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
     } catch { /* ignore */ }
   }
 
-  function handleWrapClick(e: React.MouseEvent) {
-    // Never steal an active text selection (e.g. finishing a drag-select to copy).
-    const sel = window.getSelection();
-    if (sel && !sel.isCollapsed) return;
-    const t = e.target as HTMLElement;
-    // Ignore clicks that landed on actual content / controls.
-    if (
-      t.closest(".bn-block-content") ||
-      t.closest("button") ||
-      t.closest('[role="menu"]') ||
-      t.closest('[role="toolbar"]')
-    )
-      return;
-    focusEnd();
-  }
-
   function statementItems(): DefaultReactSuggestionItem[] {
     return STATEMENT_VARIANTS.map((variant) => ({
       ...STATEMENT_LABELS[variant],
@@ -208,12 +204,14 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
   }
 
   return (
-    <div className="min-h-[18vh] cursor-text" onClick={handleWrapClick}>
+    <div className="min-h-[12vh]">
       <BlockNoteView
         editor={editor}
         theme={theme === "dark" ? "dark" : "light"}
         onChange={() => {
-          afterChange();
+          // Defer structural fixups (quote/divider/youtube/statement) out of the
+          // change transaction to avoid re-entrancy that could lock the editor.
+          queueMicrotask(afterChange);
           onChange(JSON.stringify(editor.document));
         }}
         className="arkiv-editor"
