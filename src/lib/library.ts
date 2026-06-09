@@ -10,6 +10,7 @@ export type Page = {
   body: string;
   icon: string | null;
   cover: string | null;
+  style: string | null;
   position: number;
   created_at: string;
   updated_at: string;
@@ -64,12 +65,16 @@ export async function updatePage(input: {
   body?: string;
   icon?: string | null;
   cover?: string | null;
+  style?: string | null;
 }) {
-  const patch: { title?: string; body?: string; icon?: string | null; cover?: string | null } = {};
+  const patch: {
+    title?: string; body?: string; icon?: string | null; cover?: string | null; style?: string | null;
+  } = {};
   if (input.title !== undefined) patch.title = input.title;
   if (input.body !== undefined) patch.body = input.body;
   if (input.icon !== undefined) patch.icon = input.icon;
   if (input.cover !== undefined) patch.cover = input.cover;
+  if (input.style !== undefined) patch.style = input.style;
   const { error } = await supabase.from("pages").update(patch).eq("id", input.id);
   if (error) throw error;
 }

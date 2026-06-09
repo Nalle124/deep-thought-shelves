@@ -1,14 +1,25 @@
 import { useEffect, useRef, useState, useMemo } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchPage, fetchLibrary, updatePage, ancestorChain, childrenOf } from "@/lib/library";
+import { fetchPage, fetchLibrary, updatePage, deletePage, ancestorChain, childrenOf } from "@/lib/library";
 import { PageIcon } from "@/components/PageIcon";
 import { CoverBanner, AddCoverButton } from "@/components/PageCover";
 import { BlockEditor, type BlockEditorHandle } from "@/components/BlockEditor";
-import { FileText } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { FileText, MoreHorizontal, Check, Type } from "lucide-react";
+
+const PAGE_STYLES: { id: string; label: string; hint: string }[] = [
+  { id: "classic", label: "Klassisk", hint: "Serif, kursiv rubrik" },
+  { id: "modern", label: "Modern", hint: "Ren sans-serif" },
+  { id: "grand", label: "Grand", hint: "Stor display-serif" },
+];
 
 export function PageEditor({ pageId }: { pageId: string }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: page, isLoading } = useQuery({
     queryKey: ["page", pageId],
     queryFn: () => fetchPage(pageId),
@@ -48,6 +59,17 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const coverMut = useMutation({
     mutationFn: (cover: string | null) => updatePage({ id: pageId, cover }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["page", pageId] }),
+  });
+  const styleMut = useMutation({
+    mutationFn: (style: string) => updatePage({ id: pageId, style }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["page", pageId] }),
+  });
+  const delMut = useMutation({
+    mutationFn: () => deletePage(pageId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["library"] });
+      navigate({ to: "/app" });
+    },
   });
 
   // debounce auto-save
@@ -90,14 +112,50 @@ export function PageEditor({ pageId }: { pageId: string }) {
           <span className="opacity-25">/</span>
           <span className="opacity-60 truncate">{page.title || "Namnlös"}</span>
         </div>
-        <div className="text-[10px] uppercase tracking-widest opacity-30 shrink-0">
-          {saveMut.isPending ? "Sparar…" : "Sparat"}
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-[10px] uppercase tracking-widest opacity-30">
+            {saveMut.isPending ? "Sparar…" : "Sparat"}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1.5 -mr-1 hover:bg-ink/5 rounded-md opacity-60 hover:opacity-100 transition" aria-label="Sidinställningar">
+                <MoreHorizontal className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                <Type className="size-3.5" /> Typografi
+              </DropdownMenuLabel>
+              {PAGE_STYLES.map((s) => {
+                const active = (page.style ?? "classic") === s.id;
+                return (
+                  <DropdownMenuItem key={s.id} onSelect={() => styleMut.mutate(s.id)} className="flex items-center justify-between gap-2">
+                    <span className="flex flex-col">
+                      <span>{s.label}</span>
+                      <span className="text-[11px] text-muted-foreground">{s.hint}</span>
+                    </span>
+                    {active && <Check className="size-3.5 shrink-0" />}
+                  </DropdownMenuItem>
+                );
+              })}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => delMut.mutate()}
+                className="text-destructive"
+              >
+                Ta bort sida
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto selection:bg-accent/20">
         {page.cover && <CoverBanner cover={page.cover} onChange={(c) => coverMut.mutate(c)} />}
-        <article className={`max-w-2xl mx-auto px-5 sm:px-8 pb-[45vh] ${page.cover ? "pt-6" : "pt-10 sm:pt-20"}`}>
+        <article
+          data-pagestyle={page.style ?? "classic"}
+          className={`max-w-2xl mx-auto px-5 sm:px-8 pb-[45vh] ${page.cover ? "pt-6" : "pt-10 sm:pt-20"}`}
+        >
           <div className="mb-4 flex items-center gap-2 flex-wrap">
             <PageIcon icon={page.icon} onChange={(ic) => iconMut.mutate(ic)} size="lg" />
             {!page.cover && <AddCoverButton onChange={(c) => coverMut.mutate(c)} />}
@@ -118,7 +176,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
                 bodyRef.current?.focus();
               }
             }}
-            className="w-full bg-transparent font-serif text-4xl sm:text-5xl italic tracking-tight outline-none mb-8 sm:mb-10 placeholder:opacity-20"
+            className="page-title w-full bg-transparent font-serif text-4xl sm:text-5xl italic tracking-tight outline-none mb-8 sm:mb-10 placeholder:opacity-20"
           />
           <BlockEditor
             key={pageId}

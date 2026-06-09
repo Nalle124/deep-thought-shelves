@@ -108,3 +108,35 @@
   padding-left: 1.25rem;
   color: color-mix(in oklab, var(--ink) 70%, transparent);
 }
+
+/* --- Per-page typography styles (classic = default Tailwind classes) --- */
+/* Modern: clean upright sans for title, body and headings. */
+[data-pagestyle="modern"] .page-title {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+[data-pagestyle="modern"] .arkiv-editor .bn-editor {
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+[data-pagestyle="modern"] .arkiv-editor [data-content-type="heading"] {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* Grand: high-contrast Fraunces display for title + headings. */
+[data-pagestyle="grand"] .page-title {
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+[data-pagestyle="grand"] .arkiv-editor [data-content-type="heading"] {
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 600;
+}
