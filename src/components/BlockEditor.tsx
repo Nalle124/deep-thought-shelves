@@ -98,17 +98,41 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
     editor.setTextCursorPosition(fresh[fresh.length - 1], "end");
     editor.focus();
   }
-  // Notion-style: typing `"` then space at the start of a paragraph turns it
-  // into a quote block (BlockNote's built-in shortcut is `>`).
-  function maybeQuoteShortcut() {
-    const block = editor.getTextCursorPosition().block;
-    if (block.type !== "paragraph") return;
-    const text = Array.isArray(block.content)
-      ? block.content.map((c: any) => (c.type === "text" ? c.text : "")).join("")
-      : "";
-    if (text === '" ' || text === "” " || text === "“ ") {
-      editor.updateBlock(block, { type: "quote", content: [] });
+  function afterChange() {
+    // Text-cursor block (throws when a void block like a divider is node-selected).
+    let textBlock: any = null;
+    try { textBlock = editor.getTextCursorPosition().block; } catch { textBlock = null; }
+
+    // `"` + space at the start of a paragraph → quote (Notion-style; BlockNote's
+    // built-in is `>`).
+    if (textBlock?.type === "paragraph") {
+      const text = Array.isArray(textBlock.content)
+        ? textBlock.content.map((c: any) => (c.type === "text" ? c.text : "")).join("")
+        : "";
+      if (text === '" ' || text === "” " || text === "“ ") {
+        editor.updateBlock(textBlock, { type: "quote", content: [] });
+        return;
+      }
     }
+
+    // A freshly created divider (e.g. via `---`) gets node-selected (blue) and you
+    // can't keep typing. Drop a paragraph right after it and move the cursor there
+    // so writing continues in place — no jump up the page.
+    try {
+      const selDivider = editor.getSelection()?.blocks?.find((b: any) => b?.type === "divider");
+      const divider = selDivider ?? (textBlock?.type === "divider" ? textBlock : null);
+      if (divider) {
+        const doc = editor.document;
+        const idx = doc.findIndex((b: any) => b.id === divider.id);
+        const next = doc[idx + 1];
+        if (!next) {
+          const ins = editor.insertBlocks([{ type: "paragraph" }], divider.id, "after");
+          editor.setTextCursorPosition(ins[0].id, "end");
+        } else {
+          editor.setTextCursorPosition(next.id, "start");
+        }
+      }
+    } catch { /* ignore */ }
   }
 
   function handleWrapClick(e: React.MouseEvent) {
@@ -149,7 +173,7 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
         editor={editor}
         theme={theme === "dark" ? "dark" : "light"}
         onChange={() => {
-          maybeQuoteShortcut();
+          afterChange();
           onChange(JSON.stringify(editor.document));
         }}
         className="arkiv-editor"
