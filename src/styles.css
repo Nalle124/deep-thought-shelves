@@ -140,3 +140,91 @@
   font-style: normal;
   font-weight: 600;
 }
+
+/* --- Home ambient backgrounds (lightweight CSS animations) --- */
+.ambient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.ambient::before,
+.ambient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient::before,
+  .ambient::after,
+  .ambient { animation: none !important; }
+}
+
+/* Brasa — warm fire glow pulsing from below */
+.ambient-brasa {
+  background: radial-gradient(120% 85% at 50% 118%, #7c2d12 0%, #431407 38%, #1a0f0a 72%, #0c0a09 100%);
+}
+.ambient-brasa::before {
+  background: radial-gradient(55% 38% at 50% 112%, rgba(249, 115, 22, 0.6), transparent 70%);
+  animation: brasaGlow 5s ease-in-out infinite;
+}
+.ambient-brasa::after {
+  background: radial-gradient(40% 28% at 38% 116%, rgba(250, 204, 21, 0.35), transparent 70%);
+  animation: brasaGlow 6.5s ease-in-out infinite reverse;
+}
+@keyframes brasaGlow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.95; transform: scale(1.08); }
+}
+
+/* Stilla vatten — cool flowing gradient */
+.ambient-vatten {
+  background: linear-gradient(160deg, #0e7490 0%, #155e75 45%, #0c3a4d 100%);
+  background-size: 220% 220%;
+  animation: vattenFlow 20s ease-in-out infinite;
+}
+.ambient-vatten::before {
+  background: radial-gradient(80% 50% at 30% 18%, rgba(125, 211, 252, 0.2), transparent 60%);
+  animation: vattenShimmer 13s ease-in-out infinite alternate;
+}
+@keyframes vattenFlow {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 60%; }
+  100% { background-position: 0% 0%; }
+}
+@keyframes vattenShimmer {
+  from { opacity: 0.3; transform: translateY(0); }
+  to { opacity: 0.6; transform: translateY(14px); }
+}
+
+/* Aurora — drifting green/violet light */
+.ambient-aurora {
+  background: #0b1020;
+}
+.ambient-aurora::before {
+  inset: -25%;
+  background: conic-gradient(
+    from 120deg at 50% 38%,
+    rgba(16, 185, 129, 0) 0%,
+    rgba(16, 185, 129, 0.45) 25%,
+    rgba(139, 92, 246, 0.4) 50%,
+    rgba(16, 185, 129, 0) 75%
+  );
+  filter: blur(46px);
+  animation: auroraDrift 17s ease-in-out infinite;
+}
+@keyframes auroraDrift {
+  0%, 100% { transform: translateX(-8%) rotate(0deg); opacity: 0.7; }
+  50% { transform: translateX(8%) rotate(8deg); opacity: 1; }
+}
+
+/* Gryning — soft dawn shifting */
+.ambient-gryning {
+  background: linear-gradient(160deg, #fcd9b6 0%, #f6b3a0 38%, #c4a3c9 72%, #8a7ca8 100%);
+  background-size: 200% 200%;
+  animation: gryningShift 22s ease-in-out infinite;
+}
+@keyframes gryningShift {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 50% 100%; }
+  100% { background-position: 0% 0%; }
+}
