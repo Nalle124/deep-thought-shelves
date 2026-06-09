@@ -5,6 +5,7 @@ import { fetchPage, fetchLibrary, updatePage, trashPage, ancestorChain, children
 import { PageIcon } from "@/components/PageIcon";
 import { CoverBanner, AddCoverButton } from "@/components/PageCover";
 import { BlockEditor, type BlockEditorHandle } from "@/components/BlockEditor";
+import { QuickScroll } from "@/components/QuickScroll";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -32,8 +33,23 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const initRef = useRef<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<BlockEditorHandle>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImg, setUploadingImg] = useState(false);
+  // Keyboard offset (mobile): keep the action bar pinned just above the keyboard.
+  const [kbOffset, setKbOffset] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setKbOffset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
 
   async function handlePickImage(file: File) {
     setUploadingImg(true);
@@ -199,7 +215,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto selection:bg-accent/20 cursor-text" onClick={handleEditorAreaPointer}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto selection:bg-accent/20 cursor-text" onClick={handleEditorAreaPointer}>
         {page.cover && <CoverBanner cover={page.cover} onChange={(c) => coverMut.mutate(c)} />}
         <article
           data-pagestyle={page.style ?? "classic"}
@@ -261,6 +277,26 @@ export function PageEditor({ pageId }: { pageId: string }) {
             </section>
           )}
         </article>
+      </div>
+
+      <QuickScroll scrollRef={scrollRef} />
+
+      {/* Mobile action bar — pinned above the keyboard so adding an image is
+          always one tap away, wherever you are in the document. */}
+      <div
+        className="md:hidden fixed left-0 right-0 z-30 px-3 pointer-events-none"
+        style={{ bottom: kbOffset }}
+      >
+        <div className="pointer-events-auto mb-2 flex items-center gap-1 rounded-full border border-border bg-card/95 backdrop-blur px-1.5 py-1.5 shadow-xl w-fit">
+          <button
+            onClick={() => imageInputRef.current?.click()}
+            disabled={uploadingImg}
+            className="p-2.5 rounded-full hover:bg-ink/5 disabled:opacity-50"
+            aria-label="Lägg till bild"
+          >
+            {uploadingImg ? <Loader2 className="size-5 animate-spin" /> : <ImagePlus className="size-5" />}
+          </button>
+        </div>
       </div>
     </>
   );
