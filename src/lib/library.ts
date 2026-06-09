@@ -120,13 +120,18 @@ export function isSelfOrDescendant(pages: Page[], maybeAncestor: string, target:
 
 // Breadcrumb of titles from root down to (but not including) the given page's parent chain.
 export function ancestorTitles(pages: Page[], pageId: string | null): string[] {
-  const parts: string[] = [];
+  return ancestorChain(pages, pageId).map((p) => p.title || "Namnlös");
+}
+
+// Ancestor pages (id + title), root → nearest parent, for a clickable breadcrumb.
+export function ancestorChain(pages: Page[], pageId: string | null): { id: string; title: string }[] {
+  const chain: { id: string; title: string }[] = [];
   let current = pages.find((p) => p.id === pageId);
   while (current?.parent_id) {
     const parent = pages.find((p) => p.id === current!.parent_id);
     if (!parent) break;
-    parts.unshift(parent.title || "Namnlös");
+    chain.unshift({ id: parent.id, title: parent.title || "Namnlös" });
     current = parent;
   }
-  return parts;
+  return chain;
 }

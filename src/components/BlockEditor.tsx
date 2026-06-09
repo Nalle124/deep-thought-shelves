@@ -87,9 +87,18 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
     editor.focus();
   }
   function handleWrapClick(e: React.MouseEvent) {
+    // Never steal an active text selection (e.g. finishing a drag-select to copy).
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return;
     const t = e.target as HTMLElement;
     // Ignore clicks that landed on actual content / controls.
-    if (t.closest(".bn-block-content") || t.closest("button") || t.closest('[role="menu"]')) return;
+    if (
+      t.closest(".bn-block-content") ||
+      t.closest("button") ||
+      t.closest('[role="menu"]') ||
+      t.closest('[role="toolbar"]')
+    )
+      return;
     focusEnd();
   }
 

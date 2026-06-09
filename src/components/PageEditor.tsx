@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchPage, fetchLibrary, updatePage, ancestorTitles, childrenOf } from "@/lib/library";
+import { fetchPage, fetchLibrary, updatePage, ancestorChain, childrenOf } from "@/lib/library";
 import { PageIcon } from "@/components/PageIcon";
 import { CoverBanner, AddCoverButton } from "@/components/PageCover";
 import { BlockEditor, type BlockEditorHandle } from "@/components/BlockEditor";
@@ -12,6 +12,8 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const { data: page, isLoading } = useQuery({
     queryKey: ["page", pageId],
     queryFn: () => fetchPage(pageId),
+    // Keep fetched pages in cache so revisiting is instant (no refetch flicker).
+    staleTime: 60_000,
   });
   const { data: lib } = useQuery({ queryKey: ["library"], queryFn: fetchLibrary });
 
@@ -55,8 +57,8 @@ export function PageEditor({ pageId }: { pageId: string }) {
     saveTimer.current = window.setTimeout(() => saveMut.mutate(patch), 600);
   }
 
-  const breadcrumb = useMemo(
-    () => ancestorTitles(lib?.pages ?? [], pageId).join(" / "),
+  const crumbs = useMemo(
+    () => ancestorChain(lib?.pages ?? [], pageId),
     [lib, pageId],
   );
   const childPages = useMemo(
@@ -71,8 +73,22 @@ export function PageEditor({ pageId }: { pageId: string }) {
   return (
     <>
       <header className="h-12 sm:h-14 border-b border-border flex items-center justify-between px-4 sm:px-8 shrink-0 gap-3">
-        <div className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.2em] opacity-40 truncate">
-          Arkiv {breadcrumb && `/ ${breadcrumb} `}/ {page.title || "Namnlös"}
+        <div className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.2em] truncate flex items-center gap-1.5">
+          <Link to="/app" className="opacity-40 hover:opacity-90 transition-opacity">Arkiv</Link>
+          {crumbs.map((c) => (
+            <span key={c.id} className="flex items-center gap-1.5 min-w-0">
+              <span className="opacity-25">/</span>
+              <Link
+                to="/app/page/$pageId"
+                params={{ pageId: c.id }}
+                className="opacity-40 hover:opacity-90 transition-opacity truncate max-w-[12ch]"
+              >
+                {c.title || "Namnlös"}
+              </Link>
+            </span>
+          ))}
+          <span className="opacity-25">/</span>
+          <span className="opacity-60 truncate">{page.title || "Namnlös"}</span>
         </div>
         <div className="text-[10px] uppercase tracking-widest opacity-30 shrink-0">
           {saveMut.isPending ? "Sparar…" : "Sparat"}
@@ -81,7 +97,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
 
       <div className="flex-1 overflow-y-auto selection:bg-accent/20">
         {page.cover && <CoverBanner cover={page.cover} onChange={(c) => coverMut.mutate(c)} />}
-        <article className={`max-w-2xl mx-auto px-5 sm:px-8 pb-20 ${page.cover ? "pt-6" : "pt-10 sm:pt-20"}`}>
+        <article className={`max-w-2xl mx-auto px-5 sm:px-8 pb-[45vh] ${page.cover ? "pt-6" : "pt-10 sm:pt-20"}`}>
           <div className="mb-4 flex items-center gap-2 flex-wrap">
             <PageIcon icon={page.icon} onChange={(ic) => iconMut.mutate(ic)} size="lg" />
             {!page.cover && <AddCoverButton onChange={(c) => coverMut.mutate(c)} />}

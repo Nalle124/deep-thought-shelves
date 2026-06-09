@@ -1,13 +1,12 @@
-import { useState, type ReactNode, type DragEvent, type MouseEvent } from "react";
+import { useState, useEffect, useRef, type ReactNode, type DragEvent, type MouseEvent } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchLibrary, createPage, deletePage, renamePage, movePage, setPageIcon,
+  fetchLibrary, fetchPage, createPage, deletePage, renamePage, movePage, setPageIcon,
   childrenOf, hasChildren, isSelfOrDescendant, type Page,
 } from "@/lib/library";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/lib/theme";
-import { toast } from "sonner";
 import { PageIcon } from "@/components/PageIcon";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -52,8 +51,24 @@ function setDrag(e: DragEvent, payload: DragPayload) {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const qc = useQueryClient();
   const { data: lib } = useQuery({ queryKey: ["library"], queryFn: fetchLibrary });
   const params = useParams({ strict: false }) as { pageId?: string };
+
+  // Preload every page (with body) once and seed the per-page cache so jumping
+  // between pages is instant — no per-click network fetch / "Laddar" flash.
+  // Page text is tiny, so one bulk fetch is cheap.
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (!lib || seeded.current) return;
+    seeded.current = true;
+    supabase
+      .from("pages")
+      .select("*")
+      .then(({ data }) => {
+        data?.forEach((p) => qc.setQueryData(["page", p.id], p));
+      });
+  }, [lib, qc]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [deskOpen, setDeskOpen] = useState(true);
   const newPage = useCreateRootPage();
@@ -185,7 +200,7 @@ function SidebarBody({ pages, activePageId, onNavigate, onCollapse }: {
       </div>
 
       <nav
-        className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5"
+        className="flex-1 overflow-y-auto px-3 py-2"
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleRootDrop}
       >
@@ -193,18 +208,24 @@ function SidebarBody({ pages, activePageId, onNavigate, onCollapse }: {
           to="/app"
           onClick={onNavigate}
           activeOptions={{ exact: true }}
-          className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm transition-colors mb-1 ${
+          className={`flex items-center gap-2.5 px-2 py-2 text-[0.95rem] rounded-md transition-colors ${
             !activePageId ? "bg-accent/15 text-accent" : "opacity-70 hover:opacity-100 hover:bg-ink/5"
           }`}
         >
-          <House className="size-3.5 opacity-60 shrink-0" />
+          <House className="size-4 opacity-60 shrink-0" />
           <span>Hem</span>
         </Link>
-        {roots.map((p) => (
-          <PageNode key={p.id} page={p} pages={pages} depth={0} activePageId={activePageId} onNavigate={onNavigate} />
-        ))}
+
+        <p className="px-2 mt-6 mb-1.5 text-[10px] uppercase tracking-[0.25em] text-muted-foreground/70">
+          Sidor
+        </p>
+        <div className="space-y-0.5">
+          {roots.map((p) => (
+            <PageNode key={p.id} page={p} pages={pages} depth={0} activePageId={activePageId} onNavigate={onNavigate} />
+          ))}
+        </div>
         {roots.length === 0 && (
-          <p className="px-3 py-8 text-xs text-muted-foreground italic">
+          <p className="px-2 py-6 text-xs text-muted-foreground italic">
             Tomt arkiv. Tryck <span className="font-medium">+</span> för att börja.
           </p>
         )}
@@ -263,8 +284,7 @@ function PageNode({ page, pages, depth, activePageId, onNavigate }: {
     const data = parseDrag(e);
     if (!data || data.id === page.id) return;
     if (isSelfOrDescendant(pages, data.id, page.id)) {
-      toast.error("Kan inte flytta en sida in i sig själv");
-      return;
+      return; // can't move a page into itself / its own subtree
     }
     moveMut.mutate({ id: data.id, parent: page.id });
     setOpen(true);
@@ -300,7 +320,15 @@ function PageNode({ page, pages, depth, activePageId, onNavigate }: {
           params={{ pageId: page.id }}
           onClick={onNavigate}
           draggable={false}
-          className={`flex-1 min-w-0 py-1.5 text-sm truncate ${active ? "text-accent" : "opacity-80 group-hover:opacity-100"}`}
+          // Preload the page body on hover so the click navigates instantly.
+          onPointerEnter={() =>
+            qc.prefetchQuery({
+              queryKey: ["page", page.id],
+              queryFn: () => fetchPage(page.id),
+              staleTime: 60_000,
+            })
+          }
+          className={`flex-1 min-w-0 py-2 text-[0.95rem] truncate ${active ? "text-accent" : "opacity-80 group-hover:opacity-100"}`}
         >
           {page.title || "Namnlös"}
         </Link>
@@ -345,7 +373,6 @@ function RowMenu({ page }: { page: Page }) {
     mutationFn: () => deletePage(page.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["library"] });
-      toast.success("Sida borttagen");
       navigate({ to: "/app" });
     },
   });

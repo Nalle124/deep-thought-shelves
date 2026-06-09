@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -19,6 +18,7 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Prefill remembered email
   useEffect(() => {
@@ -29,6 +29,7 @@ function AuthPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     try {
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
@@ -36,7 +37,6 @@ function AuthPage() {
           options: { emailRedirectTo: `${window.location.origin}/app` },
         });
         if (error) throw error;
-        toast.success("Välkommen till Arkiv.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -45,7 +45,7 @@ function AuthPage() {
       else localStorage.removeItem("arkiv:remembered-email");
       navigate({ to: "/app" });
     } catch (err: any) {
-      toast.error(err.message ?? "Något gick fel");
+      setError(err.message ?? "Något gick fel");
     } finally {
       setLoading(false);
     }
@@ -87,6 +87,8 @@ function AuthPage() {
             />
             Kom ihåg mig på den här enheten
           </label>
+
+          {error && <p className="text-xs text-destructive">{error}</p>}
 
           <button
             type="submit" disabled={loading}

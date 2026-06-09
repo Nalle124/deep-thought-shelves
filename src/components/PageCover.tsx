@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { COVER_PRESETS, coverBackground } from "@/lib/covers";
 import { uploadMedia } from "@/lib/storage";
-import { toast } from "sonner";
 import { ImagePlus, Upload, Loader2 } from "lucide-react";
 
 function CoverMenu({
@@ -22,8 +21,8 @@ function CoverMenu({
       const url = await uploadMedia(file);
       onPick(url);
       setOpen(false);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Kunde inte ladda upp bilden");
+    } catch (e) {
+      console.error("Cover upload failed", e);
     } finally {
       setUploading(false);
     }
