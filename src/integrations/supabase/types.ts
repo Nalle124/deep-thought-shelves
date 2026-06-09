@@ -19,6 +19,7 @@ export type Database = {
           body: string
           cover: string | null
           created_at: string
+          deleted_at: string | null
           icon: string | null
           id: string
           parent_id: string | null
@@ -32,6 +33,7 @@ export type Database = {
           body?: string
           cover?: string | null
           created_at?: string
+          deleted_at?: string | null
           icon?: string | null
           id?: string
           parent_id?: string | null
@@ -45,6 +47,7 @@ export type Database = {
           body?: string
           cover?: string | null
           created_at?: string
+          deleted_at?: string | null
           icon?: string | null
           id?: string
           parent_id?: string | null

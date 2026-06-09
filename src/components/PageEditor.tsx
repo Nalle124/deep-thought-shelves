@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchPage, fetchLibrary, updatePage, deletePage, ancestorChain, childrenOf } from "@/lib/library";
+import { fetchPage, fetchLibrary, updatePage, trashPage, ancestorChain, childrenOf } from "@/lib/library";
 import { PageIcon } from "@/components/PageIcon";
 import { CoverBanner, AddCoverButton } from "@/components/PageCover";
 import { BlockEditor, type BlockEditorHandle } from "@/components/BlockEditor";
@@ -71,7 +71,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["page", pageId] }),
   });
   const delMut = useMutation({
-    mutationFn: () => deletePage(pageId),
+    mutationFn: () => trashPage(pageId, lib?.pages ?? []),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["library"] });
       navigate({ to: "/app" });

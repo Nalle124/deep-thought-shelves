@@ -19,17 +19,33 @@ import {
 import { Type } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { uploadMedia } from "@/lib/storage";
+import { youtubeId } from "@/lib/youtube";
 import { StatementBlock, STATEMENT_VARIANTS, type StatementVariant } from "@/components/StatementBlock";
+import { YouTubeBlock } from "@/components/YouTubeBlock";
 
 export type BlockEditorHandle = { focus: () => void };
 
-// Schema = built-in blocks + our "art statement" block + multi-column support
-// (drag blocks side by side to build rows / collages).
+// Schema = built-in blocks + custom blocks (art statement, YouTube embed) +
+// multi-column support (drag blocks side by side to build rows / collages).
 const schema = withMultiColumn(
   BlockNoteSchema.create({
-    blockSpecs: { ...defaultBlockSpecs, statement: StatementBlock() },
+    blockSpecs: { ...defaultBlockSpecs, statement: StatementBlock(), youtube: YouTubeBlock() },
   }),
 );
+
+function blockText(block: any): string {
+  return Array.isArray(block?.content)
+    ? block.content
+        .map((c: any) =>
+          c?.type === "text"
+            ? c.text
+            : c?.type === "link"
+              ? (c.content ?? []).map((cc: any) => cc.text ?? "").join("")
+              : "",
+        )
+        .join("")
+    : "";
+}
 
 // Parse the stored body (BlockNote document JSON). Empty/legacy values start a
 // fresh empty document.
@@ -104,14 +120,38 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
     try { textBlock = editor.getTextCursorPosition().block; } catch { textBlock = null; }
 
     // `"` + space at the start of a paragraph → quote (Notion-style; BlockNote's
-    // built-in is `>`).
+    // built-in is `>`). Also: a paragraph that is just a YouTube link → embed.
     if (textBlock?.type === "paragraph") {
-      const text = Array.isArray(textBlock.content)
-        ? textBlock.content.map((c: any) => (c.type === "text" ? c.text : "")).join("")
-        : "";
+      const text = blockText(textBlock);
       if (text === '" ' || text === "” " || text === "“ ") {
         editor.updateBlock(textBlock, { type: "quote", content: [] });
         return;
+      }
+      const trimmed = text.trim();
+      const yt = youtubeId(trimmed);
+      if (yt && /^https?:\/\/\S+$/.test(trimmed) && !/\s/.test(trimmed)) {
+        editor.updateBlock(textBlock, { type: "youtube", props: { videoId: yt } } as any);
+        const fresh = editor.document;
+        const i = fresh.findIndex((b: any) => b.id === textBlock.id);
+        if (!fresh[i + 1]) {
+          const ins = editor.insertBlocks([{ type: "paragraph" }], textBlock.id, "after");
+          editor.setTextCursorPosition(ins[0].id, "end");
+        }
+        return;
+      }
+    }
+
+    // Enter at the end of a statement should drop you into normal text, not make
+    // another statement. An empty statement following another → convert to paragraph.
+    if (textBlock?.type === "statement") {
+      const empty = !textBlock.content || (Array.isArray(textBlock.content) && textBlock.content.length === 0);
+      if (empty) {
+        const doc = editor.document;
+        const idx = doc.findIndex((b: any) => b.id === textBlock.id);
+        if (doc[idx - 1]?.type === "statement") {
+          editor.updateBlock(textBlock, { type: "paragraph", content: [] });
+          return;
+        }
       }
     }
 

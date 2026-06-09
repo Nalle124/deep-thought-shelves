@@ -33,7 +33,8 @@ function plainText(body: string): string {
 export async function fetchSearchIndex(): Promise<SearchDoc[]> {
   const { data, error } = await supabase
     .from("pages")
-    .select("id,title,icon,parent_id,body");
+    .select("id,title,icon,parent_id,body")
+    .is("deleted_at", null);
   if (error) throw error;
   return (data ?? []).map((p: any) => ({
     id: p.id,

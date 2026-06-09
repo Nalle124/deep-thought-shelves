@@ -11,6 +11,7 @@ export type Page = {
   icon: string | null;
   cover: string | null;
   style: string | null;
+  deleted_at: string | null;
   position: number;
   created_at: string;
   updated_at: string;
@@ -21,11 +22,14 @@ export type Page = {
 export type Library = { pages: Page[] };
 
 export async function fetchLibrary(): Promise<Library> {
-  const { data, error } = await supabase
-    .from("pages")
-    .select("id,user_id,parent_id,title,icon,position,created_at,updated_at")
-    .order("position")
-    .order("created_at");
+  const cols = "id,user_id,parent_id,title,icon,position,created_at,updated_at";
+  let { data, error } = await supabase
+    .from("pages").select(cols).is("deleted_at", null).order("position").order("created_at");
+  // Resilience: before the trash migration runs, the deleted_at column doesn't
+  // exist — fall back to an unfiltered fetch so the archive still loads.
+  if (error) {
+    ({ data, error } = await supabase.from("pages").select(cols).order("position").order("created_at"));
+  }
   if (error) throw error;
   return { pages: (data ?? []).map((p: any) => ({ ...p, body: "" })) as Page[] };
 }
@@ -79,10 +83,60 @@ export async function updatePage(input: {
   if (error) throw error;
 }
 
-// Deleting a page cascades to its descendants via the parent_id FK (ON DELETE CASCADE).
+// Permanent delete — cascades to descendants via the parent_id FK (ON DELETE CASCADE).
 export async function deletePage(id: string) {
   const { error } = await supabase.from("pages").delete().eq("id", id);
   if (error) throw error;
+}
+
+// All ids in the subtree rooted at `id` (itself + every descendant), from a list.
+export function subtreeIds(pages: Page[], id: string): string[] {
+  const ids = [id];
+  const stack = [id];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    for (const p of pages) {
+      if (p.parent_id === cur) {
+        ids.push(p.id);
+        stack.push(p.id);
+      }
+    }
+  }
+  return ids;
+}
+
+// Soft-delete a page and its whole subtree (moves them to the trash).
+export async function trashPage(id: string, pages: Page[]) {
+  const ids = subtreeIds(pages, id);
+  const { error } = await supabase
+    .from("pages")
+    .update({ deleted_at: new Date().toISOString() })
+    .in("id", ids);
+  if (error) throw error;
+}
+
+// Restore a trashed subtree. If its parent is also trashed (or gone), detach to root.
+export async function restorePage(id: string, trash: Page[]) {
+  const ids = subtreeIds(trash, id);
+  const page = trash.find((p) => p.id === id);
+  const { error } = await supabase
+    .from("pages")
+    .update({ deleted_at: null })
+    .in("id", ids);
+  if (error) throw error;
+  if (page?.parent_id && trash.some((p) => p.id === page.parent_id)) {
+    await supabase.from("pages").update({ parent_id: null }).eq("id", id);
+  }
+}
+
+export async function fetchTrash(): Promise<Page[]> {
+  const { data, error } = await supabase
+    .from("pages")
+    .select("id,user_id,parent_id,title,icon,deleted_at,created_at,updated_at")
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((p: any) => ({ ...p, body: "", cover: null, style: null, position: 0 })) as Page[];
 }
 
 export async function renamePage(id: string, title: string) {

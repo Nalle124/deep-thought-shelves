@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, type ReactNode, type DragEvent, type MouseEvent } from "react";
+import { useState, useEffect, useRef, useMemo, type ReactNode, type DragEvent, type MouseEvent } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchLibrary, fetchPage, createPage, deletePage, renamePage, movePage, setPageIcon,
-  childrenOf, hasChildren, isSelfOrDescendant, type Page,
+  fetchLibrary, fetchPage, createPage, deletePage, trashPage, restorePage, fetchTrash,
+  renamePage, movePage, setPageIcon, childrenOf, hasChildren, isSelfOrDescendant, type Page,
 } from "@/lib/library";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/lib/theme";
@@ -21,7 +21,7 @@ import {
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   ChevronRight, MoreHorizontal, Plus, Sun, Moon, LogOut, Trash2, Pencil, Menu,
-  PanelLeft, PanelLeftClose, House,
+  PanelLeft, PanelLeftClose, House, FileText, RotateCcw,
 } from "lucide-react";
 
 const DRAG_TYPE = "application/x-arkiv";
@@ -65,6 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     supabase
       .from("pages")
       .select("*")
+      .is("deleted_at", null)
       .then(({ data }) => {
         data?.forEach((p) => qc.setQueryData(["page", p.id], p));
       });
@@ -208,7 +209,7 @@ function SidebarBody({ pages, activePageId, onNavigate, onCollapse }: {
           to="/app"
           onClick={onNavigate}
           activeOptions={{ exact: true }}
-          className={`flex items-center gap-2.5 px-2 py-2 text-[0.95rem] rounded-md transition-colors ${
+          className={`flex items-center gap-2.5 px-2 py-2.5 md:py-2 text-base md:text-[0.95rem] rounded-md transition-colors ${
             !activePageId ? "bg-accent/15 text-accent" : "opacity-70 hover:opacity-100 hover:bg-ink/5"
           }`}
         >
@@ -237,6 +238,7 @@ function SidebarBody({ pages, activePageId, onNavigate, onCollapse }: {
           <p className="text-xs font-medium truncate">Ditt arkiv</p>
           <p className="text-[10px] opacity-40 uppercase tracking-wider">Privat</p>
         </div>
+        <TrashButton />
         <button onClick={signOut} className="p-1.5 hover:bg-ink/5 rounded-md" aria-label="Logga ut">
           <LogOut className="size-3.5 opacity-60" />
         </button>
@@ -328,7 +330,7 @@ function PageNode({ page, pages, depth, activePageId, onNavigate }: {
               staleTime: 60_000,
             })
           }
-          className={`flex-1 min-w-0 py-2 text-[0.95rem] truncate ${active ? "text-accent" : "opacity-80 group-hover:opacity-100"}`}
+          className={`flex-1 min-w-0 py-2.5 md:py-2 text-base md:text-[0.95rem] truncate ${active ? "text-accent" : "opacity-80 group-hover:opacity-100"}`}
         >
           {page.title || "Namnlös"}
         </Link>
@@ -340,7 +342,7 @@ function PageNode({ page, pages, depth, activePageId, onNavigate }: {
         >
           <Plus className="size-3.5" />
         </button>
-        <RowMenu page={page} />
+        <RowMenu page={page} pages={pages} />
       </div>
 
       {isParent && open && (
@@ -354,7 +356,7 @@ function PageNode({ page, pages, depth, activePageId, onNavigate }: {
   );
 }
 
-function RowMenu({ page }: { page: Page }) {
+function RowMenu({ page, pages }: { page: Page; pages: Page[] }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState(false);
@@ -370,7 +372,7 @@ function RowMenu({ page }: { page: Page }) {
     },
   });
   const delMut = useMutation({
-    mutationFn: () => deletePage(page.id),
+    mutationFn: () => trashPage(page.id, pages),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["library"] });
       navigate({ to: "/app" });
@@ -416,14 +418,14 @@ function RowMenu({ page }: { page: Page }) {
       <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif italic text-2xl">Ta bort den här sidan?</AlertDialogTitle>
+            <AlertDialogTitle className="font-serif italic text-2xl">Flytta till papperskorgen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Alla undersidor inuti tas också bort permanent.
+              Sidan och dess undersidor hamnar i papperskorgen. Du kan återställa dem därifrån.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Avbryt</AlertDialogCancel>
-            <AlertDialogAction onClick={() => delMut.mutate()}>Ta bort</AlertDialogAction>
+            <AlertDialogAction onClick={() => delMut.mutate()}>Flytta till papperskorgen</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -433,6 +435,80 @@ function RowMenu({ page }: { page: Page }) {
 
 // Single action: create a new top-level page and jump straight into it. No choice
 // between page/folder — a page becomes a "folder" the moment something nests in it.
+function TrashButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen(true)} className="p-1.5 hover:bg-ink/5 rounded-md" aria-label="Papperskorg" title="Papperskorg">
+        <Trash2 className="size-3.5 opacity-60" />
+      </button>
+      <TrashDialog open={open} onOpenChange={setOpen} />
+    </>
+  );
+}
+
+function TrashDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const qc = useQueryClient();
+  const { data: trash } = useQuery({ queryKey: ["trash"], queryFn: fetchTrash, enabled: open });
+  // Only show the roots of each deleted subtree (a deleted page whose parent
+  // isn't itself in the trash).
+  const items = useMemo(() => {
+    const t = trash ?? [];
+    const ids = new Set(t.map((p) => p.id));
+    return t.filter((p) => !p.parent_id || !ids.has(p.parent_id));
+  }, [trash]);
+
+  const restoreMut = useMutation({
+    mutationFn: (id: string) => restorePage(id, trash ?? []),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["trash"] });
+      qc.invalidateQueries({ queryKey: ["library"] });
+    },
+  });
+  const purgeMut = useMutation({
+    mutationFn: (id: string) => deletePage(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["trash"] }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="font-serif italic text-2xl">Papperskorg</DialogTitle>
+        </DialogHeader>
+        {items.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4">Papperskorgen är tom.</p>
+        ) : (
+          <ul className="max-h-80 overflow-y-auto -mx-1">
+            {items.map((p) => (
+              <li key={p.id} className="flex items-center gap-2 px-1 py-2 border-b border-border last:border-0">
+                <span className="text-base leading-none shrink-0">
+                  {p.icon ?? <FileText className="size-4 opacity-40" />}
+                </span>
+                <span className="flex-1 truncate text-sm">{p.title || "Namnlös"}</span>
+                <button
+                  onClick={() => restoreMut.mutate(p.id)}
+                  className="p-1.5 rounded-md hover:bg-ink/5 text-muted-foreground hover:text-ink"
+                  title="Återställ"
+                >
+                  <RotateCcw className="size-4" />
+                </button>
+                <button
+                  onClick={() => purgeMut.mutate(p.id)}
+                  className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  title="Ta bort permanent"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function FloatingAdd() {
   const newPage = useCreateRootPage();
 
