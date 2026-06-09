@@ -10,6 +10,12 @@ import {
 import { BlockNoteView } from "@blocknote/mantine";
 import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
 import { en } from "@blocknote/core/locales";
+import {
+  withMultiColumn,
+  multiColumnDropCursor,
+  getMultiColumnSlashMenuItems,
+  locales as multiColumnLocales,
+} from "@blocknote/xl-multi-column";
 import { Type } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { uploadMedia } from "@/lib/storage";
@@ -17,10 +23,13 @@ import { StatementBlock, STATEMENT_VARIANTS, type StatementVariant } from "@/com
 
 export type BlockEditorHandle = { focus: () => void };
 
-// Schema = the built-in blocks + our "art statement" block.
-const schema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, statement: StatementBlock() },
-});
+// Schema = built-in blocks + our "art statement" block + multi-column support
+// (drag blocks side by side to build rows / collages).
+const schema = withMultiColumn(
+  BlockNoteSchema.create({
+    blockSpecs: { ...defaultBlockSpecs, statement: StatementBlock() },
+  }),
+);
 
 // Parse the stored body (BlockNote document JSON). Empty/legacy values start a
 // fresh empty document.
@@ -56,9 +65,12 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
     initialContent: parseInitial(value),
     // Drag/drop/paste an image → uploads to Supabase Storage, returns a URL.
     uploadFile: uploadMedia,
+    // Drag a block to the side of another to place them in a row (collage).
+    dropCursor: multiColumnDropCursor,
     // No Swedish locale ships with BlockNote — override the visible placeholder.
     dictionary: {
       ...en,
+      multi_column: multiColumnLocales.en,
       placeholders: {
         ...en.placeholders,
         default: "Skriv något, eller tryck '/' för kommandon",
@@ -130,7 +142,11 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
         <SuggestionMenuController
           triggerCharacter="/"
           getItems={async (query) => {
-            const items = [...getDefaultReactSlashMenuItems(editor), ...statementItems()];
+            const items = [
+              ...getDefaultReactSlashMenuItems(editor),
+              ...getMultiColumnSlashMenuItems(editor),
+              ...statementItems(),
+            ];
             const q = query.trim().toLowerCase();
             if (!q) return items;
             return items.filter(

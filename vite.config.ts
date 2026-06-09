@@ -16,7 +16,12 @@ export default defineConfig({
   // full reloads) discovering them on demand.
   vite: {
     optimizeDeps: {
-      include: ["@blocknote/core", "@blocknote/react", "@blocknote/mantine"],
+      include: [
+        "@blocknote/core",
+        "@blocknote/react",
+        "@blocknote/mantine",
+        "@blocknote/xl-multi-column",
+      ],
     },
   },
   // Declaring `nitro` explicitly makes the deploy build run outside Lovable's sandbox too
