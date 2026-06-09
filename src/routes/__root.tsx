@@ -52,7 +52,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Arkiv — En privat dagbok" },
+      { title: "Arkiv" },
       { name: "description", content: "Ett stilla, privat arkiv av anteckningar." },
       { property: "og:title", content: "Arkiv — En privat dagbok" },
       { name: "twitter:title", content: "Arkiv — En privat dagbok" },
@@ -64,6 +64,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
     ],
     links: [
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },

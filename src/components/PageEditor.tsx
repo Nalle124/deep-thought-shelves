@@ -43,6 +43,12 @@ export function PageEditor({ pageId }: { pageId: string }) {
     }
   }, [page]);
 
+  // Browser tab title = the page heading (just "Arkiv" elsewhere).
+  useEffect(() => {
+    document.title = title.trim() ? title.trim() : "Arkiv";
+    return () => { document.title = "Arkiv"; };
+  }, [title]);
+
   const saveMut = useMutation({
     mutationFn: (patch: { title?: string; body?: string }) => updatePage({ id: pageId, ...patch }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),

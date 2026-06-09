@@ -98,6 +98,19 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
     editor.setTextCursorPosition(fresh[fresh.length - 1], "end");
     editor.focus();
   }
+  // Notion-style: typing `"` then space at the start of a paragraph turns it
+  // into a quote block (BlockNote's built-in shortcut is `>`).
+  function maybeQuoteShortcut() {
+    const block = editor.getTextCursorPosition().block;
+    if (block.type !== "paragraph") return;
+    const text = Array.isArray(block.content)
+      ? block.content.map((c: any) => (c.type === "text" ? c.text : "")).join("")
+      : "";
+    if (text === '" ' || text === "” " || text === "“ ") {
+      editor.updateBlock(block, { type: "quote", content: [] });
+    }
+  }
+
   function handleWrapClick(e: React.MouseEvent) {
     // Never steal an active text selection (e.g. finishing a drag-select to copy).
     const sel = window.getSelection();
@@ -135,7 +148,10 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
       <BlockNoteView
         editor={editor}
         theme={theme === "dark" ? "dark" : "light"}
-        onChange={() => onChange(JSON.stringify(editor.document))}
+        onChange={() => {
+          maybeQuoteShortcut();
+          onChange(JSON.stringify(editor.document));
+        }}
         className="arkiv-editor"
         slashMenu={false}
       >
