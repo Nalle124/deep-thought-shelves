@@ -14,6 +14,8 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import { fetchSearchIndex, searchDocs, exportArchive } from "@/lib/search";
+import { dailyCuriosity, type Curiosity } from "@/lib/curiosities";
+import { fetchWeather } from "@/lib/weather";
 import {
   ChevronRight, FileText, Sparkles, Plus, X, Check, SlidersHorizontal, Search, Download,
 } from "lucide-react";
@@ -50,6 +52,14 @@ function Overview() {
     [pages],
   );
 
+  const { data: weather } = useQuery({
+    queryKey: ["weather"],
+    queryFn: fetchWeather,
+    staleTime: 30 * 60_000,
+    retry: false,
+  });
+  const curiosity = useMemo(() => dailyCuriosity(), []);
+
   const [ambient, setAmbient] = useState<AmbientChoice>("auto");
   const [sections, setSections] = useState<Sections>({ week: true, goals: true });
   useEffect(() => {
@@ -78,6 +88,7 @@ function Overview() {
             <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">
               {new Date().toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}
               {" · Vecka "}{isoWeekKey().split("-W")[1]}
+              {weather && <span className="normal-case tracking-normal"> · {weather.emoji} {weather.temp}°</span>}
             </p>
             <h1 className="font-serif italic text-4xl sm:text-6xl tracking-tight">{greetingForToday()}</h1>
             <p className="mt-4 text-muted-foreground text-sm sm:text-base">
@@ -88,6 +99,7 @@ function Overview() {
         </div>
 
         <SearchBox />
+        <CuriosityCard curiosity={curiosity} />
         <RecentCards recent={recent} pages={pages} />
 
         {sections.week && <WeeklySchedule />}
@@ -139,6 +151,26 @@ function HomeMenu({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function emphasize(s: string): string {
+  return s.replace(/\*(.+?)\*/g, "<em>$1</em>");
+}
+
+function CuriosityCard({ curiosity }: { curiosity: Curiosity }) {
+  return (
+    <section className="mt-8">
+      <div className="rounded-xl border border-border bg-card/70 backdrop-blur-sm p-5">
+        <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2 flex items-center gap-1.5">
+          <Sparkles className="size-3.5" /> Dagens · {curiosity.tag}
+        </p>
+        <p
+          className="font-text text-[1.15rem] leading-relaxed text-ink/90"
+          dangerouslySetInnerHTML={{ __html: emphasize(curiosity.text) }}
+        />
+      </div>
+    </section>
   );
 }
 
