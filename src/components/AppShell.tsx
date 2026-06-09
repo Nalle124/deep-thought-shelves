@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="p-0 w-[85vw] max-w-xs bg-paper border-border">
+        <SheetContent side="left" className="p-0 w-[82vw] max-w-xs bg-paper border-border [&>button.absolute]:hidden">
           <SidebarBody pages={pages} activePageId={params.pageId} onNavigate={() => setMobileOpen(false)} />
         </SheetContent>
       </Sheet>

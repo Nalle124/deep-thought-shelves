@@ -159,41 +159,50 @@
   .ambient { animation: none !important; }
 }
 
-/* Brasa — warm fire glow pulsing from below */
+/* Brasa — warm fire glow that flickers and drifts side to side */
 .ambient-brasa {
   background: radial-gradient(120% 85% at 50% 118%, #7c2d12 0%, #431407 38%, #1a0f0a 72%, #0c0a09 100%);
 }
 .ambient-brasa::before {
-  background: radial-gradient(55% 38% at 50% 112%, rgba(249, 115, 22, 0.6), transparent 70%);
-  animation: brasaGlow 5s ease-in-out infinite;
+  background: radial-gradient(55% 42% at 50% 112%, rgba(249, 115, 22, 0.75), transparent 70%);
+  animation: brasaFlickerA 4s ease-in-out infinite;
 }
 .ambient-brasa::after {
-  background: radial-gradient(40% 28% at 38% 116%, rgba(250, 204, 21, 0.35), transparent 70%);
-  animation: brasaGlow 6.5s ease-in-out infinite reverse;
+  background: radial-gradient(42% 30% at 42% 116%, rgba(250, 204, 21, 0.5), transparent 70%);
+  animation: brasaFlickerB 5.5s ease-in-out infinite;
 }
-@keyframes brasaGlow {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50% { opacity: 0.95; transform: scale(1.08); }
+@keyframes brasaFlickerA {
+  0%, 100% { opacity: 0.45; transform: translateX(-3%) scale(1); }
+  35% { opacity: 0.95; transform: translateX(2%) scale(1.1); }
+  70% { opacity: 0.6; transform: translateX(-2%) scale(1.04); }
+}
+@keyframes brasaFlickerB {
+  0%, 100% { opacity: 0.3; transform: translateX(3%) scale(1.05); }
+  50% { opacity: 0.75; transform: translateX(-4%) scale(0.95); }
 }
 
-/* Stilla vatten — cool flowing gradient */
+/* Stilla vatten — cool gradient with two slow moving wave layers */
 .ambient-vatten {
   background: linear-gradient(160deg, #0e7490 0%, #155e75 45%, #0c3a4d 100%);
-  background-size: 220% 220%;
-  animation: vattenFlow 20s ease-in-out infinite;
+  background-size: 260% 260%;
+  animation: vattenFlow 14s ease-in-out infinite;
 }
 .ambient-vatten::before {
-  background: radial-gradient(80% 50% at 30% 18%, rgba(125, 211, 252, 0.2), transparent 60%);
-  animation: vattenShimmer 13s ease-in-out infinite alternate;
+  background: radial-gradient(70% 45% at 30% 20%, rgba(125, 211, 252, 0.3), transparent 60%);
+  animation: vattenWave 9s ease-in-out infinite alternate;
+}
+.ambient-vatten::after {
+  background: radial-gradient(60% 40% at 70% 76%, rgba(45, 212, 191, 0.24), transparent 60%);
+  animation: vattenWave 11s ease-in-out infinite alternate-reverse;
 }
 @keyframes vattenFlow {
   0% { background-position: 0% 0%; }
-  50% { background-position: 100% 60%; }
+  50% { background-position: 100% 70%; }
   100% { background-position: 0% 0%; }
 }
-@keyframes vattenShimmer {
-  from { opacity: 0.3; transform: translateY(0); }
-  to { opacity: 0.6; transform: translateY(14px); }
+@keyframes vattenWave {
+  from { opacity: 0.35; transform: translate(0, 0); }
+  to { opacity: 0.7; transform: translate(6%, 18px); }
 }
 
 /* Aurora — drifting green/violet light */

@@ -75,7 +75,10 @@ function Overview() {
       <div className="relative max-w-3xl mx-auto px-6 sm:px-10 py-12 sm:py-16">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Arkiv</p>
+            <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">
+              {new Date().toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}
+              {" · Vecka "}{isoWeekKey().split("-W")[1]}
+            </p>
             <h1 className="font-serif italic text-4xl sm:text-6xl tracking-tight">{greetingForToday()}</h1>
             <p className="mt-4 text-muted-foreground text-sm sm:text-base">
               En stilla plats för dina tankar. {pages.length} sid{pages.length === 1 ? "a" : "or"} i arkivet.
