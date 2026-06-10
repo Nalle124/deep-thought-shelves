@@ -186,7 +186,7 @@ function SearchBox() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Sök i arkivet…"
-          className="w-full bg-card/70 backdrop-blur-sm border border-border rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:border-accent placeholder:opacity-50"
+          className="w-full bg-card/70 backdrop-blur-sm border border-border rounded-lg pl-9 pr-3 py-2.5 text-base sm:text-sm outline-none focus:border-accent placeholder:opacity-50"
         />
       </div>
       {q.trim() && (
@@ -340,7 +340,7 @@ function WeeklySchedule() {
                   value={notes[d.key] ?? ""}
                   onChange={(e) => setDay(d.key, e.target.value)}
                   placeholder="…"
-                  className="flex-1 w-full bg-transparent resize-none outline-none text-sm leading-snug placeholder:opacity-30 font-text"
+                  className="flex-1 w-full bg-transparent resize-none outline-none text-base sm:text-sm leading-snug placeholder:opacity-30 font-text"
                 />
               </div>
             );
@@ -415,7 +415,7 @@ function TrainingGoals() {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") addGoal(); }}
           placeholder="Nytt mål, t.ex. Gym 4 ggr"
-          className="flex-1 bg-card/70 backdrop-blur-sm border border-border rounded-md px-3 py-2 text-sm outline-none focus:border-accent placeholder:opacity-40"
+          className="flex-1 bg-card/70 backdrop-blur-sm border border-border rounded-md px-3 py-2 text-base sm:text-sm outline-none focus:border-accent placeholder:opacity-40"
         />
         <button onClick={addGoal} className="p-2 rounded-md bg-ink text-paper hover:opacity-90 transition" aria-label="Lägg till mål">
           <Plus className="size-4" />
