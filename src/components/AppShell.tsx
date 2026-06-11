@@ -12,10 +12,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -94,8 +90,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Sheet>
 
       <main className="flex-1 flex flex-col relative overflow-hidden min-w-0">
-        {/* Mobile top bar */}
-        <div className="md:hidden h-12 border-b border-border flex items-center justify-between px-3 shrink-0">
+        {/* Mobile top bar — pad past the status bar / notch in standalone PWA mode
+            (viewport-fit=cover + translucent status bar draws content under it). */}
+        <div className="md:hidden min-h-12 border-b border-border flex items-center justify-between px-3 shrink-0 pt-[env(safe-area-inset-top,0px)]">
           <div className="flex items-center">
             <button
               onClick={() => setMobileOpen(true)}
@@ -168,7 +165,7 @@ function SidebarBody({ pages, activePageId, onNavigate, onCollapse }: {
 
   return (
     <aside className="w-72 max-w-full h-full shrink-0 md:border-r border-border flex flex-col bg-paper">
-      <div className="p-5 sm:p-6 flex items-center justify-between">
+      <div className="px-5 pb-5 sm:px-6 sm:pb-6 pt-[calc(env(safe-area-inset-top,0px)+1.25rem)] sm:pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] flex items-center justify-between">
         <Link to="/app" onClick={onNavigate} className="font-serif italic text-2xl tracking-tight">Arkiv</Link>
         <div className="flex items-center gap-0.5">
           <button
@@ -383,7 +380,6 @@ function RowMenu({ page, pages }: { page: Page; pages: Page[] }) {
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState(page.title);
-  const [confirmDel, setConfirmDel] = useState(false);
 
   const renameMut = useMutation({
     mutationFn: () => renamePage(page.id, title.trim() || "Namnlös"),
@@ -416,7 +412,7 @@ function RowMenu({ page, pages }: { page: Page; pages: Page[] }) {
           <DropdownMenuItem onSelect={() => { setTitle(page.title); setRenaming(true); }}>
             <Pencil className="size-3.5 mr-2" /> Byt namn
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setConfirmDel(true)} className="text-destructive">
+          <DropdownMenuItem onSelect={() => delMut.mutate()} className="text-destructive">
             <Trash2 className="size-3.5 mr-2" /> Ta bort
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -436,21 +432,6 @@ function RowMenu({ page, pages }: { page: Page; pages: Page[] }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif italic text-2xl">Flytta till papperskorgen?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sidan och dess undersidor hamnar i papperskorgen. Du kan återställa dem därifrån.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Avbryt</AlertDialogCancel>
-            <AlertDialogAction onClick={() => delMut.mutate()}>Flytta till papperskorgen</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

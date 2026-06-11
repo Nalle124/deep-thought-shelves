@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchLibrary, type Page } from "@/lib/library";
 import {
-  fetchUserState, saveUserState, isoWeekKey, weekDates, WEEK_DAYS,
+  fetchUserState, saveUserState, isoWeekKey, weekDates, WEEK_DAYS, dayKey,
   EMPTY_STATE, type UserState, type Goal,
 } from "@/lib/userState";
 import { AmbientBackground } from "@/components/AmbientBackground";
@@ -16,8 +16,10 @@ import {
 import { fetchSearchIndex, searchDocs, exportArchive } from "@/lib/search";
 import { dailyCuriosity, type Curiosity } from "@/lib/curiosities";
 import { fetchWeather } from "@/lib/weather";
+import { fetchOnThisDay } from "@/lib/onThisDay";
 import {
   ChevronRight, FileText, Sparkles, Plus, X, Check, SlidersHorizontal, Search, Download,
+  ScrollText, ExternalLink,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app/")({
@@ -34,13 +36,14 @@ const GREETINGS = [
 const greetingForToday = () => GREETINGS[Math.floor(Date.now() / 86_400_000) % GREETINGS.length];
 
 // localStorage for which sections are shown (a light "customize").
-type Sections = { week: boolean; goals: boolean };
+type Sections = { week: boolean; goals: boolean; onThisDay: boolean };
 const SECTIONS_KEY = "arkiv:home-sections";
+const DEFAULT_SECTIONS: Sections = { week: true, goals: true, onThisDay: true };
 function loadSections(): Sections {
   try {
-    return { week: true, goals: true, ...(JSON.parse(localStorage.getItem(SECTIONS_KEY) || "{}")) };
+    return { ...DEFAULT_SECTIONS, ...(JSON.parse(localStorage.getItem(SECTIONS_KEY) || "{}")) };
   } catch {
-    return { week: true, goals: true };
+    return DEFAULT_SECTIONS;
   }
 }
 
@@ -61,7 +64,7 @@ function Overview() {
   const curiosity = useMemo(() => dailyCuriosity(), []);
 
   const [ambient, setAmbient] = useState<AmbientChoice>("auto");
-  const [sections, setSections] = useState<Sections>({ week: true, goals: true });
+  const [sections, setSections] = useState<Sections>(DEFAULT_SECTIONS);
   useEffect(() => {
     setAmbient(loadAmbientChoice());
     setSections(loadSections());
@@ -100,6 +103,8 @@ function Overview() {
 
         <SearchBox />
         <CuriosityCard curiosity={curiosity} />
+        {sections.onThisDay && <OnThisDay />}
+        <CoffeeCup />
         <RecentCards recent={recent} pages={pages} />
 
         {sections.week && <WeeklySchedule />}
@@ -138,6 +143,7 @@ function HomeMenu({
         </div>
         <div className="border-t border-border pt-3">
           <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Visa</p>
+          <ToggleRow label="På denna dag" on={sections.onThisDay} onClick={() => onToggle("onThisDay")} />
           <ToggleRow label="Veckoschema" on={sections.week} onClick={() => onToggle("week")} />
           <ToggleRow label="Veckans mål" on={sections.goals} onClick={() => onToggle("goals")} />
         </div>
@@ -169,6 +175,166 @@ function CuriosityCard({ curiosity }: { curiosity: Curiosity }) {
           className="font-text text-[1.15rem] leading-relaxed text-ink/90"
           dangerouslySetInnerHTML={{ __html: emphasize(curiosity.text) }}
         />
+      </div>
+    </section>
+  );
+}
+
+// A small daily ritual: tap the mug to add a cup of coffee. The liquid rises
+// with each cup and resets at midnight (keyed by local date). Synced via user_state.
+function CoffeeCup() {
+  const { state, update } = useUserState();
+  const key = dayKey();
+  const count = state.coffee?.[key] ?? 0;
+
+  const MAX_VISUAL = 4; // 4 cups = a full mug; counting keeps going beyond.
+  const fill = Math.min(count, MAX_VISUAL) / MAX_VISUAL;
+
+  // Liquid surface inside the mug (viewBox 0..64). Fills from bottom (51) up to ~19.
+  const top = 19, bottom = 51;
+  const surfaceY = bottom - (bottom - top) * fill;
+
+  function add(delta: number) {
+    update((prev) => {
+      const cur = prev.coffee?.[key] ?? 0;
+      return { ...prev, coffee: { ...prev.coffee, [key]: Math.max(0, cur + delta) } };
+    });
+  }
+
+  return (
+    <section className="mt-4">
+      <div className="rounded-xl border border-border bg-card/70 backdrop-blur-sm p-5 flex items-center gap-5">
+        <button
+          onClick={() => add(1)}
+          className="relative shrink-0 active:scale-90 transition-transform"
+          aria-label="Lägg till en kopp kaffe"
+          title="Lägg till en kopp"
+        >
+          <svg width="68" height="68" viewBox="0 0 64 64" className="overflow-visible">
+            {/* Steam — fades in once there's coffee in the cup */}
+            <g
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              className="text-muted-foreground transition-opacity duration-500"
+              style={{ opacity: fill > 0 ? 0.45 : 0 }}
+            >
+              <path d="M26 13 q3 -3 0 -6 q-3 -3 0 -6" />
+              <path d="M34 13 q3 -3 0 -6 q-3 -3 0 -6" />
+            </g>
+
+            {/* Mug interior clip so the liquid takes the cup's shape */}
+            <defs>
+              <clipPath id="mug-inside">
+                <path d="M16 18 L42 18 L40 50 Q40 52 38 52 L20 52 Q18 52 18 50 Z" />
+              </clipPath>
+            </defs>
+
+            {/* Coffee */}
+            <g clipPath="url(#mug-inside)">
+              <rect
+                x="14"
+                width="32"
+                y={surfaceY}
+                height={fill > 0 ? bottom - surfaceY + 6 : 0}
+                fill="#7a4a2b"
+                className="transition-all duration-500 ease-out"
+              />
+            </g>
+
+            {/* Mug body + handle outline */}
+            <g fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" className="text-ink">
+              <path d="M16 18 L42 18 L40 50 Q40 52 38 52 L20 52 Q18 52 18 50 Z" />
+              <path d="M42 24 q9 0 9 7 q0 7 -9 7" strokeWidth="2.4" />
+            </g>
+          </svg>
+        </button>
+
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-1">Dagens kaffe</p>
+          <p className="font-serif italic text-2xl leading-none">
+            {count} {count === 1 ? "kopp" : "koppar"}
+          </p>
+          {count > 0 && (
+            <button
+              onClick={() => add(-1)}
+              className="mt-2 text-xs text-muted-foreground hover:text-ink transition"
+            >
+              Ångra
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// "På denna dag" — one historical event for today's date, with a discreet link to
+// read more on Wikipedia and an expandable list of a few more events. A small
+// morning-newspaper moment, not a takeover of the home screen.
+function OnThisDay() {
+  const { data: events } = useQuery({
+    queryKey: ["onThisDay", dayKey()],
+    queryFn: () => fetchOnThisDay(),
+    staleTime: 6 * 60 * 60_000,
+    retry: false,
+  });
+  const [expanded, setExpanded] = useState(false);
+
+  if (!events || events.length === 0) return null;
+
+  const dayNumber = Math.floor(Date.now() / 86_400_000);
+  const mainIdx = dayNumber % events.length;
+  const main = events[mainIdx];
+  const more = events.filter((_, i) => i !== mainIdx).slice(0, 4);
+  const yearsAgo = new Date().getFullYear() - main.year;
+
+  return (
+    <section className="mt-4">
+      <div className="rounded-xl border border-border bg-card/70 backdrop-blur-sm p-5">
+        <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2 flex items-center gap-1.5">
+          <ScrollText className="size-3.5" /> På denna dag · {main.year}
+          {yearsAgo > 0 && <span className="opacity-50 normal-case tracking-normal">· {yearsAgo} år sedan</span>}
+        </p>
+        <p className="font-text text-[1.15rem] leading-relaxed text-ink/90">{main.text}</p>
+        <div className="mt-3 flex items-center gap-5">
+          {main.url && (
+            <a
+              href={main.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-ink transition"
+            >
+              Läs mer <ExternalLink className="size-3" />
+            </a>
+          )}
+          {more.length > 0 && (
+            <button
+              onClick={() => setExpanded((o) => !o)}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-ink transition"
+            >
+              <ChevronRight className={`size-3 transition-transform ${expanded ? "rotate-90" : ""}`} />
+              Fler händelser idag
+            </button>
+          )}
+        </div>
+        {expanded && more.length > 0 && (
+          <ul className="mt-3 space-y-2 border-t border-border pt-3">
+            {more.map((e, i) => (
+              <li key={i} className="text-sm leading-snug">
+                <span className="text-muted-foreground tabular-nums mr-2">{e.year}</span>
+                {e.url ? (
+                  <a href={e.url} target="_blank" rel="noreferrer noopener" className="text-ink/80 hover:text-ink transition">
+                    {e.text}
+                  </a>
+                ) : (
+                  <span className="text-ink/80">{e.text}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );
@@ -271,29 +437,29 @@ function RecentCards({ recent, pages }: { recent: Page[]; pages: Page[] }) {
 
 // --- user_state backed sections ---
 
+// The React Query cache is the single source of truth for user_state, so every
+// section (schedule, goals, coffee) reads and writes the same blob. Each `update`
+// merges into the latest cached value before saving, so concurrent edits from
+// different sections can't clobber each other with a stale snapshot.
 function useUserState() {
+  const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["userState"],
     queryFn: fetchUserState,
     retry: false,
-    staleTime: 30_000,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
-  const [state, setState] = useState<UserState | null>(null);
-  useEffect(() => {
-    if (data) setState((prev) => prev ?? data);
-  }, [data]);
 
   const saveTimer = useRef<number | null>(null);
   const saveMut = useMutation({ mutationFn: (s: UserState) => saveUserState(s) });
   function update(updater: (prev: UserState) => UserState) {
-    setState((prev) => {
-      const next = updater(prev ?? EMPTY_STATE);
-      if (saveTimer.current) window.clearTimeout(saveTimer.current);
-      saveTimer.current = window.setTimeout(() => saveMut.mutate(next), 700);
-      return next;
-    });
+    const next = updater(qc.getQueryData<UserState>(["userState"]) ?? EMPTY_STATE);
+    qc.setQueryData(["userState"], next); // instant in-memory update, shared by all sections
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => saveMut.mutate(next), 700);
   }
-  return { state: state ?? EMPTY_STATE, update };
+  return { state: data ?? EMPTY_STATE, update };
 }
 
 function WeeklySchedule() {

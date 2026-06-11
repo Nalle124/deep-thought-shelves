@@ -1,14 +1,18 @@
 import { useRef, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { COVER_PRESETS, coverBackground } from "@/lib/covers";
+import {
+  COVER_PRESETS, COVER_PHOTOS, coverBackground, randomCover, randomPhotoCover, photoUrl,
+} from "@/lib/covers";
 import { uploadMedia } from "@/lib/storage";
-import { ImagePlus, Upload, Loader2 } from "lucide-react";
+import { ImagePlus, Upload, Loader2, Shuffle } from "lucide-react";
 
 function CoverMenu({
   onPick,
+  current,
   children,
 }: {
   onPick: (cover: string) => void;
+  current?: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -33,7 +37,17 @@ function CoverMenu({
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-3 space-y-3">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Galleri</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Färg</p>
+            <button
+              type="button"
+              onClick={() => { onPick(randomCover(current)); setOpen(false); }}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-ink transition"
+              title="Slumpa en vibe"
+            >
+              <Shuffle className="size-3" /> Slumpa
+            </button>
+          </div>
           <div className="grid grid-cols-3 gap-2">
             {COVER_PRESETS.map((p) => (
               <button
@@ -41,8 +55,34 @@ function CoverMenu({
                 type="button"
                 title={p.label}
                 onClick={() => { onPick(`preset:${p.id}`); setOpen(false); }}
-                className="h-12 rounded-md border border-border hover:ring-2 hover:ring-accent/40 transition"
+                className="h-10 rounded-md border border-border hover:ring-2 hover:ring-accent/40 transition"
                 style={{ background: p.css }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Foto</p>
+            <button
+              type="button"
+              onClick={() => { onPick(randomPhotoCover(current)); setOpen(false); }}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-ink transition"
+              title="Slumpa ett foto"
+            >
+              <Shuffle className="size-3" /> Slumpa foto
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-2 max-h-44 overflow-y-auto pr-0.5">
+            {COVER_PHOTOS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                title={p.label}
+                onClick={() => { onPick(photoUrl(p.id, 1600, 600)); setOpen(false); }}
+                className="h-12 rounded-md border border-border bg-cover bg-center hover:ring-2 hover:ring-accent/40 transition"
+                style={{ backgroundImage: `url("${photoUrl(p.id, 240, 140)}")` }}
               />
             ))}
           </div>
@@ -95,7 +135,7 @@ export function CoverBanner({
       style={bg ? { background: bg } : undefined}
     >
       <div className="absolute bottom-3 right-4 flex gap-2 opacity-0 group-hover/cover:opacity-100 transition-opacity">
-        <CoverMenu onPick={onChange}>
+        <CoverMenu onPick={onChange} current={cover}>
           <button className="px-2.5 py-1.5 text-xs rounded-md bg-paper/85 backdrop-blur hover:bg-paper text-ink shadow-sm">
             Byt omslag
           </button>

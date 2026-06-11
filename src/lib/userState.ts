@@ -9,9 +9,15 @@ export type UserState = {
   goals: Goal[];
   goalsDone: Record<string, string[]>; // weekKey → done goal ids
   week: Record<string, WeekNotes>; // weekKey → day notes
+  coffee: Record<string, number>; // dayKey (YYYY-MM-DD) → cups drunk that day
 };
 
-export const EMPTY_STATE: UserState = { goals: [], goalsDone: {}, week: {} };
+export const EMPTY_STATE: UserState = { goals: [], goalsDone: {}, week: {}, coffee: {} };
+
+// Local-date key, e.g. "2026-06-11" — for things that reset at midnight.
+export function dayKey(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export async function fetchUserState(): Promise<UserState> {
   const { data, error } = await supabase
@@ -23,11 +29,12 @@ export async function fetchUserState(): Promise<UserState> {
 }
 
 export async function saveUserState(state: UserState): Promise<void> {
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) throw new Error("Not authenticated");
+  const { data: s } = await supabase.auth.getSession();
+  const user = s.session?.user;
+  if (!user) throw new Error("Not authenticated");
   const { error } = await supabase
     .from("user_state")
-    .upsert({ user_id: u.user.id, data: state, updated_at: new Date().toISOString() });
+    .upsert({ user_id: user.id, data: state, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
 
