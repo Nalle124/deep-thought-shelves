@@ -9,6 +9,7 @@ import {
 } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
+import { SuggestionMenu } from "@blocknote/core/extensions";
 import { en } from "@blocknote/core/locales";
 import {
   withMultiColumn,
@@ -26,6 +27,7 @@ import { YouTubeBlock } from "@/components/YouTubeBlock";
 export type BlockEditorHandle = {
   focus: () => void;
   insertImage: (file: File) => Promise<void>;
+  openCommandMenu: () => void;
 };
 
 // Schema = built-in blocks + custom blocks (art statement, YouTube embed) +
@@ -123,6 +125,37 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
       const doc = editor.document;
       target = target ?? doc[doc.length - 1];
       editor.insertBlocks([{ type: "image", props: { url } } as any], target.id, "after");
+    },
+    // Mobile fallback for the "/" command menu: virtual keyboards don't reliably
+    // fire the "/" trigger, so a button opens the same suggestion menu directly.
+    // Mirrors BlockNote's own "+" side-menu button: open at the cursor if the
+    // block is empty, otherwise on a fresh paragraph just after it.
+    openCommandMenu: () => {
+      try {
+        let cur: any = null;
+        try { cur = editor.getTextCursorPosition().block; } catch { cur = null; }
+        if (!cur) {
+          const doc = editor.document;
+          const last = doc[doc.length - 1];
+          if (!last) return;
+          const isVoid = ["divider", "youtube", "image"].includes(last.type as string);
+          if (isVoid) {
+            const ins = editor.insertBlocks([{ type: "paragraph" }], last.id, "after");
+            editor.setTextCursorPosition(ins[0].id, "end");
+          } else {
+            editor.setTextCursorPosition(last.id, "end");
+          }
+          cur = editor.getTextCursorPosition().block;
+        }
+        const empty = !cur.content || (Array.isArray(cur.content) && cur.content.length === 0);
+        if (!empty) {
+          const ins = editor.insertBlocks([{ type: "paragraph" }], cur.id, "after");
+          editor.setTextCursorPosition(ins[0].id, "end");
+        }
+        editor.getExtension(SuggestionMenu)?.openSuggestionMenu("/");
+      } catch (e) {
+        console.error("openCommandMenu failed", e);
+      }
     },
   }), [editor]);
 

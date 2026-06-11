@@ -10,7 +10,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FileText, MoreHorizontal, Check, Type, ImagePlus, Loader2 } from "lucide-react";
+import { FileText, MoreHorizontal, Check, Type, ImagePlus, Loader2, Plus } from "lucide-react";
 
 const PAGE_STYLES: { id: string; label: string; hint: string }[] = [
   { id: "classic", label: "Klassisk", hint: "Serif, kursiv rubrik" },
@@ -288,6 +288,13 @@ export function PageEditor({ pageId }: { pageId: string }) {
         style={{ bottom: kbOffset }}
       >
         <div className="pointer-events-auto mb-2 flex items-center gap-1 rounded-full border border-border bg-card/95 backdrop-blur px-1.5 py-1.5 shadow-xl w-fit">
+          <button
+            onClick={() => bodyRef.current?.openCommandMenu()}
+            className="p-2.5 rounded-full hover:bg-ink/5"
+            aria-label="Infoga block (kommandon)"
+          >
+            <Plus className="size-5" />
+          </button>
           <button
             onClick={() => imageInputRef.current?.click()}
             disabled={uploadingImg}
