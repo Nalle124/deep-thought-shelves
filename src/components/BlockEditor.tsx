@@ -26,7 +26,7 @@ import { YouTubeBlock } from "@/components/YouTubeBlock";
 
 export type BlockEditorHandle = {
   focus: () => void;
-  insertImage: (file: File) => Promise<void>;
+  insertImages: (files: File[]) => Promise<void>;
   openCommandMenu: () => void;
 };
 
@@ -118,13 +118,18 @@ export const BlockEditor = forwardRef<BlockEditorHandle, {
       } catch { /* ignore */ }
       editor.focus();
     },
-    insertImage: async (file: File) => {
-      const url = await uploadMedia(file);
+    // Upload one or many images and drop them in, in order, after the cursor.
+    insertImages: async (files: File[]) => {
+      const urls = await Promise.all(files.map((f) => uploadMedia(f)));
       let target: any = null;
       try { target = editor.getTextCursorPosition().block; } catch { target = null; }
       const doc = editor.document;
       target = target ?? doc[doc.length - 1];
-      editor.insertBlocks([{ type: "image", props: { url } } as any], target.id, "after");
+      editor.insertBlocks(
+        urls.map((url) => ({ type: "image", props: { url } } as any)),
+        target.id,
+        "after",
+      );
     },
     // Mobile fallback for the "/" command menu: virtual keyboards don't reliably
     // fire the "/" trigger, so a button opens the same suggestion menu directly.

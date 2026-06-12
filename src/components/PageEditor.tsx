@@ -51,10 +51,11 @@ export function PageEditor({ pageId }: { pageId: string }) {
     };
   }, []);
 
-  async function handlePickImage(file: File) {
+  async function handlePickImages(files: File[]) {
+    if (files.length === 0) return;
     setUploadingImg(true);
     try {
-      await bodyRef.current?.insertImage(file);
+      await bodyRef.current?.insertImages(files);
     } catch (e) {
       console.error("Image upload failed", e);
     } finally {
@@ -178,8 +179,9 @@ export function PageEditor({ pageId }: { pageId: string }) {
             ref={imageInputRef}
             type="file"
             accept="image/*"
+            multiple
             className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePickImage(f); e.target.value = ""; }}
+            onChange={(e) => { handlePickImages(Array.from(e.target.files ?? [])); e.target.value = ""; }}
           />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

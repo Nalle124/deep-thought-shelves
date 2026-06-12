@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchLibrary, type Page } from "@/lib/library";
 import {
-  fetchUserState, saveUserState, isoWeekKey, weekDates, WEEK_DAYS, dayKey,
-  EMPTY_STATE, type UserState, type Goal,
+  isoWeekKey, weekDates, WEEK_DAYS, dayKey, type Goal,
 } from "@/lib/userState";
+import { useUserState } from "@/lib/useUserState";
 import { AmbientBackground } from "@/components/AmbientBackground";
 import {
   AMBIENTS, loadAmbientChoice, saveAmbientChoice, type AmbientChoice,
@@ -36,9 +36,9 @@ const GREETINGS = [
 const greetingForToday = () => GREETINGS[Math.floor(Date.now() / 86_400_000) % GREETINGS.length];
 
 // localStorage for which sections are shown (a light "customize").
-type Sections = { week: boolean; goals: boolean; onThisDay: boolean };
+type Sections = { week: boolean; goals: boolean; onThisDay: boolean; coffee: boolean };
 const SECTIONS_KEY = "arkiv:home-sections";
-const DEFAULT_SECTIONS: Sections = { week: true, goals: true, onThisDay: true };
+const DEFAULT_SECTIONS: Sections = { week: true, goals: true, onThisDay: true, coffee: false };
 function loadSections(): Sections {
   try {
     return { ...DEFAULT_SECTIONS, ...(JSON.parse(localStorage.getItem(SECTIONS_KEY) || "{}")) };
@@ -104,7 +104,7 @@ function Overview() {
         <SearchBox />
         <CuriosityCard curiosity={curiosity} />
         {sections.onThisDay && <OnThisDay />}
-        <CoffeeCup />
+        {sections.coffee && <CoffeeCup />}
         <RecentCards recent={recent} pages={pages} />
 
         {sections.week && <WeeklySchedule />}
@@ -144,6 +144,7 @@ function HomeMenu({
         <div className="border-t border-border pt-3">
           <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Visa</p>
           <ToggleRow label="På denna dag" on={sections.onThisDay} onClick={() => onToggle("onThisDay")} />
+          <ToggleRow label="Dagens kaffe" on={sections.coffee} onClick={() => onToggle("coffee")} />
           <ToggleRow label="Veckoschema" on={sections.week} onClick={() => onToggle("week")} />
           <ToggleRow label="Veckans mål" on={sections.goals} onClick={() => onToggle("goals")} />
         </div>
@@ -435,32 +436,7 @@ function RecentCards({ recent, pages }: { recent: Page[]; pages: Page[] }) {
   );
 }
 
-// --- user_state backed sections ---
-
-// The React Query cache is the single source of truth for user_state, so every
-// section (schedule, goals, coffee) reads and writes the same blob. Each `update`
-// merges into the latest cached value before saving, so concurrent edits from
-// different sections can't clobber each other with a stale snapshot.
-function useUserState() {
-  const qc = useQueryClient();
-  const { data } = useQuery({
-    queryKey: ["userState"],
-    queryFn: fetchUserState,
-    retry: false,
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-  });
-
-  const saveTimer = useRef<number | null>(null);
-  const saveMut = useMutation({ mutationFn: (s: UserState) => saveUserState(s) });
-  function update(updater: (prev: UserState) => UserState) {
-    const next = updater(qc.getQueryData<UserState>(["userState"]) ?? EMPTY_STATE);
-    qc.setQueryData(["userState"], next); // instant in-memory update, shared by all sections
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => saveMut.mutate(next), 700);
-  }
-  return { state: data ?? EMPTY_STATE, update };
-}
+// --- user_state backed sections (useUserState lives in @/lib/useUserState) ---
 
 function WeeklySchedule() {
   const [open, setOpen] = useState(false);

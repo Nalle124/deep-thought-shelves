@@ -247,7 +247,11 @@ function SidebarBody({ pages, activePageId, onNavigate, onCollapse }: {
 function PageNode({ page, pages, depth, activePageId, onNavigate }: {
   page: Page; pages: Page[]; depth: number; activePageId?: string; onNavigate: () => void;
 }) {
-  const [open, setOpen] = useState(true);
+  // Folders start collapsed. Only auto-open the branch that contains the page
+  // you're currently viewing, so the active page is always visible on load.
+  const [open, setOpen] = useState(
+    () => !!activePageId && activePageId !== page.id && isSelfOrDescendant(pages, page.id, activePageId),
+  );
   const [dropZone, setDropZone] = useState<null | "before" | "after" | "inside">(null);
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -301,7 +305,7 @@ function PageNode({ page, pages, depth, activePageId, onNavigate }: {
     if (zone === "inside") {
       if (isSelfOrDescendant(pages, data.id, page.id)) return;
       moveMut.mutate({ id: data.id, parent: page.id });
-      setOpen(true);
+      // Leave the folder collapsed — it stays closed until the user opens it.
     } else if (zone) {
       // Reorder among siblings (drops it at this page's level).
       if (page.parent_id && isSelfOrDescendant(pages, data.id, page.parent_id)) return;

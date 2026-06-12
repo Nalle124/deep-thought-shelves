@@ -4,7 +4,8 @@ import {
   COVER_PRESETS, COVER_PHOTOS, coverBackground, randomCover, randomPhotoCover, photoUrl,
 } from "@/lib/covers";
 import { uploadMedia } from "@/lib/storage";
-import { ImagePlus, Upload, Loader2, Shuffle } from "lucide-react";
+import { useUserState } from "@/lib/useUserState";
+import { ImagePlus, Upload, Loader2, Shuffle, X } from "lucide-react";
 
 function CoverMenu({
   onPick,
@@ -18,18 +19,31 @@ function CoverMenu({
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const { state, update } = useUserState();
+  const myCovers = state.covers ?? [];
 
-  async function handleFile(file: File) {
+  // Upload one or many images: each is added to "Mina foton" (the personal cover
+  // gallery, stored in user_state so it syncs across devices) and the first is
+  // applied to this page. The menu stays open so you can keep adding in batches.
+  async function handleFiles(files: File[]) {
+    if (files.length === 0) return;
     setUploading(true);
     try {
-      const url = await uploadMedia(file);
-      onPick(url);
-      setOpen(false);
+      const urls = await Promise.all(files.map((f) => uploadMedia(f)));
+      update((prev) => ({
+        ...prev,
+        covers: [...urls.filter((u) => !(prev.covers ?? []).includes(u)), ...(prev.covers ?? [])],
+      }));
+      onPick(urls[0]);
     } catch (e) {
       console.error("Cover upload failed", e);
     } finally {
       setUploading(false);
     }
+  }
+
+  function removeCover(url: string) {
+    update((prev) => ({ ...prev, covers: (prev.covers ?? []).filter((u) => u !== url) }));
   }
 
   return (
@@ -87,6 +101,31 @@ function CoverMenu({
             ))}
           </div>
         </div>
+        {myCovers.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Mina foton</p>
+            <div className="grid grid-cols-3 gap-2 max-h-44 overflow-y-auto pr-0.5">
+              {myCovers.map((url) => (
+                <div key={url} className="group/cv relative">
+                  <button
+                    type="button"
+                    onClick={() => { onPick(url); setOpen(false); }}
+                    className="h-12 w-full rounded-md border border-border bg-cover bg-center hover:ring-2 hover:ring-accent/40 transition"
+                    style={{ backgroundImage: `url("${url}")` }}
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); removeCover(url); }}
+                    className="absolute -top-1.5 -right-1.5 size-4 rounded-full bg-ink text-paper flex items-center justify-center opacity-0 group-hover/cv:opacity-100 transition shadow"
+                    title="Ta bort ur galleriet"
+                  >
+                    <X className="size-2.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <button
           type="button"
           disabled={uploading}
@@ -94,14 +133,15 @@ function CoverMenu({
           className="w-full flex items-center justify-center gap-2 py-2 text-sm rounded-md bg-ink/5 hover:bg-ink/10 transition-colors disabled:opacity-60"
         >
           {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-          {uploading ? "Laddar upp…" : "Ladda upp bild"}
+          {uploading ? "Laddar upp…" : "Ladda upp foton"}
         </button>
         <input
           ref={fileRef}
           type="file"
           accept="image/*"
+          multiple
           className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+          onChange={(e) => { handleFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }}
         />
       </PopoverContent>
     </Popover>

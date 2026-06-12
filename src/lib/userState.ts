@@ -10,9 +10,10 @@ export type UserState = {
   goalsDone: Record<string, string[]>; // weekKey → done goal ids
   week: Record<string, WeekNotes>; // weekKey → day notes
   coffee: Record<string, number>; // dayKey (YYYY-MM-DD) → cups drunk that day
+  covers: string[]; // user-uploaded cover photo URLs, shown in the cover gallery
 };
 
-export const EMPTY_STATE: UserState = { goals: [], goalsDone: {}, week: {}, coffee: {} };
+export const EMPTY_STATE: UserState = { goals: [], goalsDone: {}, week: {}, coffee: {}, covers: [] };
 
 // Local-date key, e.g. "2026-06-11" — for things that reset at midnight.
 export function dayKey(d = new Date()): string {

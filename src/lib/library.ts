@@ -47,6 +47,20 @@ export async function createPage(input: {
 }) {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) throw new Error("Not authenticated");
+  // Place the new page last among its siblings so it always shows up at the
+  // bottom of the list (feels like "most recently created"), instead of landing
+  // at an arbitrary spot once other siblings have explicit positions.
+  let sibQuery = supabase
+    .from("pages")
+    .select("position")
+    .is("deleted_at", null)
+    .order("position", { ascending: false })
+    .limit(1);
+  sibQuery = input.parent_id === null
+    ? sibQuery.is("parent_id", null)
+    : sibQuery.eq("parent_id", input.parent_id);
+  const { data: sibs } = await sibQuery;
+  const nextPosition = ((sibs?.[0]?.position as number | undefined) ?? -1) + 1;
   const { data, error } = await supabase
     .from("pages")
     // Empty title by default so a new page opens with a blank heading to type into.
@@ -56,6 +70,7 @@ export async function createPage(input: {
       user_id: u.user.id,
       body: "",
       icon: input.icon ?? null,
+      position: nextPosition,
     })
     .select()
     .single();
