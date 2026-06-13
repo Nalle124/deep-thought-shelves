@@ -275,7 +275,7 @@ function CoffeeCup() {
 // read more on Wikipedia and an expandable list of a few more events. A small
 // morning-newspaper moment, not a takeover of the home screen.
 function OnThisDay() {
-  const { data: events } = useQuery({
+  const { data } = useQuery({
     queryKey: ["onThisDay", dayKey()],
     queryFn: () => fetchOnThisDay(),
     staleTime: 6 * 60 * 60_000,
@@ -283,10 +283,13 @@ function OnThisDay() {
   });
   const [expanded, setExpanded] = useState(false);
 
-  if (!events || events.length === 0) return null;
+  if (!data || data.events.length === 0) return null;
+  const { events, mainCount } = data;
 
+  // The headline rotates daily among the clean, interesting items only (heavy
+  // politics/war items sit lower under "Fler händelser").
   const dayNumber = Math.floor(Date.now() / 86_400_000);
-  const mainIdx = dayNumber % events.length;
+  const mainIdx = dayNumber % mainCount;
   const main = events[mainIdx];
   const more = events.filter((_, i) => i !== mainIdx).slice(0, 4);
   const yearsAgo = new Date().getFullYear() - main.year;
