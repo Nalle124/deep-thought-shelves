@@ -16,9 +16,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
-  ChevronRight, MoreHorizontal, Plus, Sun, Moon, LogOut, Trash2, Pencil, Menu,
+  ChevronRight, MoreHorizontal, Plus, Sun, Moon, ScrollText, LogOut, Trash2, Pencil, Menu,
   PanelLeft, PanelLeftClose, House, FileText, RotateCcw,
 } from "lucide-react";
+
+const THEME_ICON = { light: Sun, paper: ScrollText, dark: Moon };
+const THEME_NEXT = { light: "papper", paper: "mörkt", dark: "ljust" };
 
 const DRAG_TYPE = "application/x-arkiv";
 type DragPayload = { id: string };
@@ -181,8 +184,9 @@ function SidebarBody({ pages, activePageId, onNavigate, onCollapse }: {
             onClick={toggle}
             className="p-1.5 hover:bg-ink/5 rounded-md transition-colors"
             aria-label="Byt tema"
+            title={`Byt tema (till ${THEME_NEXT[theme]})`}
           >
-            {theme === "light" ? <Moon className="size-4 opacity-60" /> : <Sun className="size-4 opacity-60" />}
+            {(() => { const Icon = THEME_ICON[theme]; return <Icon className="size-4 opacity-60" />; })()}
           </button>
           {onCollapse && (
             <button

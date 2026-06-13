@@ -174,7 +174,7 @@ export function CoverBanner({
       className="group/cover relative h-40 sm:h-56 w-full"
       style={bg ? { background: bg } : undefined}
     >
-      <div className="absolute bottom-3 right-4 flex gap-2 opacity-0 group-hover/cover:opacity-100 transition-opacity">
+      <div className="absolute bottom-3 right-4 flex gap-2 opacity-100 sm:opacity-0 sm:group-hover/cover:opacity-100 transition-opacity">
         <CoverMenu onPick={onChange} current={cover}>
           <button className="px-2.5 py-1.5 text-xs rounded-md bg-paper/85 backdrop-blur hover:bg-paper text-ink shadow-sm">
             Byt omslag

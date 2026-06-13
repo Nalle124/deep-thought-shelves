@@ -67,6 +67,29 @@
   --accent-foreground: #2a2826;
 }
 
+/* "Papper" — a warm, creamy mid-mode between light and dark: aged-paper cream
+   with sepia ink and a subtle fibre texture (see .paper body below). */
+.paper {
+  --paper: #f3ead2;
+  --ink: #38322a;
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: #f8f1de;
+  --muted: #e8ddc3;
+  --muted-foreground: #877a5f;
+  --border: #ddd0b3;
+  --accent: #6b705c;
+  --accent-foreground: #fbf8ef;
+}
+
+/* Faint paper grain, multiplied onto the cream background. Tune the rect
+   opacity (0.4) to make the texture stronger/weaker. */
+.paper body {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='pn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23pn)' opacity='0.4'/%3E%3C/svg%3E");
+  background-blend-mode: multiply;
+  background-attachment: fixed;
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -104,9 +127,9 @@
 .arkiv-editor [data-content-type="quote"] {
   font-family: var(--font-text);
   font-style: italic;
-  border-left: 2px solid color-mix(in oklab, var(--ink) 25%, transparent);
+  border-left: 2px solid color-mix(in oklab, var(--ink) 35%, transparent);
   padding-left: 1.25rem;
-  color: color-mix(in oklab, var(--ink) 70%, transparent);
+  color: color-mix(in oklab, var(--ink) 92%, transparent);
 }
 
 /* --- Per-page typography styles (classic = default Tailwind classes) --- */
