@@ -1,7 +1,7 @@
 {
   "name": "Arkiv",
   "short_name": "Arkiv",
-  "start_url": "/app",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#141312",
   "theme_color": "#141312",

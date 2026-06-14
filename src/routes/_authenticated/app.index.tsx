@@ -13,10 +13,12 @@ import {
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { rememberHomeSeen } from "@/lib/lastVisit";
 import { fetchSearchIndex, searchDocs, exportArchive } from "@/lib/search";
 import { dailyCuriosity, type Curiosity } from "@/lib/curiosities";
 import { fetchWeather } from "@/lib/weather";
-import { fetchOnThisDay } from "@/lib/onThisDay";
+import { fetchOnThisDay, type HistEvent } from "@/lib/onThisDay";
 import {
   ChevronRight, FileText, Sparkles, Plus, X, Check, SlidersHorizontal, Search, Download,
   ScrollText, ExternalLink,
@@ -68,6 +70,7 @@ function Overview() {
   useEffect(() => {
     setAmbient(loadAmbientChoice());
     setSections(loadSections());
+    rememberHomeSeen(); // seeing home counts for today → later launches go to last page
   }, []);
 
   function pickAmbient(c: AmbientChoice) { setAmbient(c); saveAmbientChoice(c); }
@@ -85,16 +88,16 @@ function Overview() {
         <AmbientBackground choice={ambient} />
       </div>
 
-      <div className="relative max-w-3xl mx-auto px-6 sm:px-10 py-12 sm:py-16">
+      <div className="relative max-w-3xl mx-auto px-6 sm:px-10 py-8 sm:py-16">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">
+            <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2 sm:mb-3">
               {new Date().toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}
               {" · Vecka "}{isoWeekKey().split("-W")[1]}
               {weather && <span className="normal-case tracking-normal"> · {weather.emoji} {weather.temp}°</span>}
             </p>
-            <h1 className="font-serif italic text-4xl sm:text-6xl tracking-tight">{greetingForToday()}</h1>
-            <p className="mt-4 text-muted-foreground text-sm sm:text-base">
+            <h1 className="font-serif italic text-[1.75rem] leading-tight sm:text-6xl tracking-tight">{greetingForToday()}</h1>
+            <p className="mt-2 sm:mt-4 text-muted-foreground text-sm sm:text-base">
               En stilla plats för dina tankar. {pages.length} sid{pages.length === 1 ? "a" : "or"} i arkivet.
             </p>
           </div>
@@ -102,10 +105,9 @@ function Overview() {
         </div>
 
         <SearchBox />
-        <CuriosityCard curiosity={curiosity} />
-        {sections.onThisDay && <OnThisDay />}
-        {sections.coffee && <CoffeeCup />}
+        <DailyStrip curiosity={curiosity} showOnThisDay={sections.onThisDay} />
         <RecentCards recent={recent} pages={pages} />
+        {sections.coffee && <CoffeeCup />}
 
         {sections.week && <WeeklySchedule />}
         {sections.goals && <TrainingGoals />}
@@ -165,18 +167,105 @@ function emphasize(s: string): string {
   return s.replace(/\*(.+?)\*/g, "<em>$1</em>");
 }
 
-function CuriosityCard({ curiosity }: { curiosity: Curiosity }) {
+// A slim, tappable "Dagens" row that teases today's curiosity and opens a modal
+// with the full fact + "På denna dag". Keeping it to one line frees the top of
+// the home screen so the recent pages are reachable without scrolling on mobile.
+function DailyStrip({ curiosity, showOnThisDay }: { curiosity: Curiosity; showOnThisDay: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const { data: otd } = useQuery({
+    queryKey: ["onThisDay", dayKey()],
+    queryFn: () => fetchOnThisDay(),
+    staleTime: 6 * 60 * 60_000,
+    retry: false,
+    enabled: showOnThisDay,
+  });
+
+  const teaser = curiosity.text.replace(/\*/g, "");
+
+  // On-this-day headline (clean items only), computed when available.
+  let otdMain: HistEvent | null = null;
+  let otdMore: HistEvent[] = [];
+  if (showOnThisDay && otd && otd.events.length) {
+    const dayNumber = Math.floor(Date.now() / 86_400_000);
+    const idx = dayNumber % otd.mainCount;
+    otdMain = otd.events[idx];
+    otdMore = otd.events.filter((_, i) => i !== idx).slice(0, 5);
+  }
+  const yearsAgo = otdMain ? new Date().getFullYear() - otdMain.year : 0;
+
   return (
-    <section className="mt-8">
-      <div className="rounded-xl border border-border bg-card/70 backdrop-blur-sm p-5">
-        <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2 flex items-center gap-1.5">
-          <Sparkles className="size-3.5" /> Dagens · {curiosity.tag}
-        </p>
-        <p
-          className="font-text text-[1.15rem] leading-relaxed text-ink/90"
-          dangerouslySetInnerHTML={{ __html: emphasize(curiosity.text) }}
-        />
-      </div>
+    <section className="mt-6">
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full text-left rounded-xl border border-border bg-card/70 backdrop-blur-sm px-4 py-3 flex items-center gap-3 hover:border-accent/40 transition group"
+      >
+        <Sparkles className="size-4 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Dagens · {curiosity.tag}</span>
+          <span className="block truncate font-text text-[0.95rem] text-ink/80">{teaser}</span>
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogTitle className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground flex items-center gap-1.5 font-normal">
+            <Sparkles className="size-3.5" /> Dagens · {curiosity.tag}
+          </DialogTitle>
+          <p
+            className="font-text text-[1.15rem] leading-relaxed text-ink/90"
+            dangerouslySetInnerHTML={{ __html: emphasize(curiosity.text) }}
+          />
+
+          {otdMain && (
+            <div className="mt-5 border-t border-border pt-4">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2 flex items-center gap-1.5">
+                <ScrollText className="size-3.5" /> På denna dag · {otdMain.year}
+                {yearsAgo > 0 && <span className="opacity-50 normal-case tracking-normal">· {yearsAgo} år sedan</span>}
+              </p>
+              <p className="font-text text-[1.1rem] leading-relaxed text-ink/90">{otdMain.text}</p>
+              <div className="mt-3 flex items-center gap-5">
+                {otdMain.url && (
+                  <a
+                    href={otdMain.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-ink transition"
+                  >
+                    Läs mer <ExternalLink className="size-3" />
+                  </a>
+                )}
+                {otdMore.length > 0 && (
+                  <button
+                    onClick={() => setExpanded((o) => !o)}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-ink transition"
+                  >
+                    <ChevronRight className={`size-3 transition-transform ${expanded ? "rotate-90" : ""}`} />
+                    Fler händelser idag
+                  </button>
+                )}
+              </div>
+              {expanded && otdMore.length > 0 && (
+                <ul className="mt-3 space-y-2 border-t border-border pt-3">
+                  {otdMore.map((e, i) => (
+                    <li key={i} className="text-sm leading-snug">
+                      <span className="text-muted-foreground tabular-nums mr-2">{e.year}</span>
+                      {e.url ? (
+                        <a href={e.url} target="_blank" rel="noreferrer noopener" className="text-ink/80 hover:text-ink transition">
+                          {e.text}
+                        </a>
+                      ) : (
+                        <span className="text-ink/80">{e.text}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
@@ -271,79 +360,6 @@ function CoffeeCup() {
   );
 }
 
-// "På denna dag" — one historical event for today's date, with a discreet link to
-// read more on Wikipedia and an expandable list of a few more events. A small
-// morning-newspaper moment, not a takeover of the home screen.
-function OnThisDay() {
-  const { data } = useQuery({
-    queryKey: ["onThisDay", dayKey()],
-    queryFn: () => fetchOnThisDay(),
-    staleTime: 6 * 60 * 60_000,
-    retry: false,
-  });
-  const [expanded, setExpanded] = useState(false);
-
-  if (!data || data.events.length === 0) return null;
-  const { events, mainCount } = data;
-
-  // The headline rotates daily among the clean, interesting items only (heavy
-  // politics/war items sit lower under "Fler händelser").
-  const dayNumber = Math.floor(Date.now() / 86_400_000);
-  const mainIdx = dayNumber % mainCount;
-  const main = events[mainIdx];
-  const more = events.filter((_, i) => i !== mainIdx).slice(0, 4);
-  const yearsAgo = new Date().getFullYear() - main.year;
-
-  return (
-    <section className="mt-4">
-      <div className="rounded-xl border border-border bg-card/70 backdrop-blur-sm p-5">
-        <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2 flex items-center gap-1.5">
-          <ScrollText className="size-3.5" /> På denna dag · {main.year}
-          {yearsAgo > 0 && <span className="opacity-50 normal-case tracking-normal">· {yearsAgo} år sedan</span>}
-        </p>
-        <p className="font-text text-[1.15rem] leading-relaxed text-ink/90">{main.text}</p>
-        <div className="mt-3 flex items-center gap-5">
-          {main.url && (
-            <a
-              href={main.url}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-ink transition"
-            >
-              Läs mer <ExternalLink className="size-3" />
-            </a>
-          )}
-          {more.length > 0 && (
-            <button
-              onClick={() => setExpanded((o) => !o)}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-ink transition"
-            >
-              <ChevronRight className={`size-3 transition-transform ${expanded ? "rotate-90" : ""}`} />
-              Fler händelser idag
-            </button>
-          )}
-        </div>
-        {expanded && more.length > 0 && (
-          <ul className="mt-3 space-y-2 border-t border-border pt-3">
-            {more.map((e, i) => (
-              <li key={i} className="text-sm leading-snug">
-                <span className="text-muted-foreground tabular-nums mr-2">{e.year}</span>
-                {e.url ? (
-                  <a href={e.url} target="_blank" rel="noreferrer noopener" className="text-ink/80 hover:text-ink transition">
-                    {e.text}
-                  </a>
-                ) : (
-                  <span className="text-ink/80">{e.text}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
-  );
-}
-
 function SearchBox() {
   const { data: index } = useQuery({ queryKey: ["searchIndex"], queryFn: fetchSearchIndex, staleTime: 30_000 });
   const [q, setQ] = useState("");
@@ -410,7 +426,7 @@ function ToggleRow({ label, on, onClick }: { label: string; on: boolean; onClick
 
 function RecentCards({ recent, pages }: { recent: Page[]; pages: Page[] }) {
   return (
-    <section className="mt-12">
+    <section className="mt-8">
       <h2 className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Senaste</h2>
       {recent.length === 0 ? (
         <p className="text-sm text-muted-foreground italic">Inget än. Tryck + för att börja.</p>

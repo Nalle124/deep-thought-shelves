@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FileText, MoreHorizontal, Check, Type, ImagePlus, Loader2, Plus } from "lucide-react";
+import { rememberPage, clearLastPage } from "@/lib/lastVisit";
 
 const PAGE_STYLES: { id: string; label: string; hint: string }[] = [
   { id: "classic", label: "Klassisk", hint: "Serif, kursiv rubrik" },
@@ -21,12 +22,20 @@ const PAGE_STYLES: { id: string; label: string; hint: string }[] = [
 export function PageEditor({ pageId }: { pageId: string }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data: page, isLoading } = useQuery({
+  const { data: page, isLoading, isError } = useQuery({
     queryKey: ["page", pageId],
     queryFn: () => fetchPage(pageId),
     // Keep fetched pages in cache so revisiting is instant (no refetch flicker).
     staleTime: 60_000,
+    retry: 1,
   });
+
+  // Remember this as the last opened page (so the app reopens here later). If the
+  // page can't be loaded (e.g. it was deleted), forget it and fall back home.
+  useEffect(() => { rememberPage(pageId); }, [pageId]);
+  useEffect(() => {
+    if (isError) { clearLastPage(); navigate({ to: "/app" }); }
+  }, [isError, navigate]);
   const { data: lib } = useQuery({ queryKey: ["library"], queryFn: fetchLibrary });
 
   const [title, setTitle] = useState("");
@@ -118,6 +127,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
     mutationFn: () => trashPage(pageId, lib?.pages ?? []),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["library"] });
+      clearLastPage();
       navigate({ to: "/app" });
     },
   });
